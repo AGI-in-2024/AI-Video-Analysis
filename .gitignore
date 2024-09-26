@@ -4,6 +4,18 @@
 *.sublime-project
 *.sublime-workspace
 
+/test_set
+
+# Frontend
+frontend/node_modules
+frontend/.next
+frontend/out
+frontend/.cache
+frontend/.pnp
+frontend/.pnp.js
+frontend/.yarn
+frontend/.yarn/install-state.gz
+
 # Virtual environments
 venv/
 env/
