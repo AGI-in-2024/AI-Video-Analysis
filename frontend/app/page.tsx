@@ -1,5 +1,5 @@
-import { VideoAnalysisServiceComponent } from "@/components/video-analysis-service"
+import MainComponent from "@/components/main-component"
 
 export default function Page() {
-  return <VideoAnalysisServiceComponent />
+  return <MainComponent />
 }
