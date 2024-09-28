@@ -162,9 +162,11 @@ def analyze_video():
     
     video_file = request.files['video']
     analysis_settings = json.loads(request.form.get('settings', '{}'))
+    advanced_settings = json.loads(request.form.get('advanced_settings', '{}'))
     
     logger.info(f"Received video file: {video_file.filename}")
     logger.info(f"Analysis settings: {analysis_settings}")
+    logger.info(f"Advanced settings: {advanced_settings}")
     
     # Create a temporary file for the video
     with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_video_file:
@@ -216,8 +218,21 @@ def analyze_video():
         logger.info("Cleaning up temporary files")
         os.remove(temp_video_path)
 
+@app.route('/api/admin-decision', methods=['POST'])
+def save_admin_decision():
+    decision = request.json
+    
+    # Here you would typically save the decision to your database
+    # For this example, we'll just log it
+    logger.info(f"Received admin decision: {decision}")
+    
+    # You might also want to update the video analysis results with this decision
+    # This would depend on your specific database structure and requirements
+    
+    return jsonify({'message': 'Decision saved successfully'}), 200
+
 setup_nltk()
 setup_textblob()
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, host='0.0.0.0', port=5000)

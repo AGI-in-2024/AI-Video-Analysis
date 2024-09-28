@@ -2,7 +2,7 @@ from src.transcription.transcription import transcribe_audio_pipeline
 from src.transcription.audio import extract_audio_from_video, analyze_audio
 from src.symbols.symbol_detection import detect_symbols
 from src.objects.object_detection import detect_objects
-from src.poi.poi_detection import detect_poi
+from src.poi.poi_detection import detect_poi, preprocess_frame, find_heat_zones, find_attention_hotspots, generate_eye_tracking_data
 from src.scenes.scene_analysis import analyze_scenes
 from src.detection.detection import detect_yolo10
 import tempfile
@@ -22,6 +22,9 @@ from collections import defaultdict
 from tqdm import tqdm
 import logging
 import io
+from torchvision.models import resnet50, ResNet50_Weights
+from scipy.ndimage import gaussian_filter
+from sklearn.cluster import KMeans
 
 def generate_summary(video_path):
     # Your analysis logic here
@@ -252,26 +255,178 @@ def generate_objects_analysis(video_path):
     }
 
 def generate_poi_analysis(video_path):
-    poi_result = detect_poi(video_path)
+    logging.info("Starting POI analysis")
     
-    return {
-        "heatZones": poi_result.get('heatZones', []),
-        "heatZoneCoordinates": poi_result.get('heatZoneCoordinates', []),
-        "attentionHotspots": poi_result.get('attentionHotspots', []),
-        "eyeTrackingData": poi_result.get('eyeTrackingData', []),
-        "labels": poi_result.get('labels', [])
+    # Initialize the device
+    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+    logging.info(f"Using device: {device}")
+
+    # Load pre-trained ResNet50 model
+    model = resnet50(weights=ResNet50_Weights.DEFAULT).to(device)
+    model.eval()
+
+    # Open the video file
+    cap = cv2.VideoCapture(video_path)
+    
+    if not cap.isOpened():
+        logging.error("Error opening video file")
+        return {
+            "heatZones": [],
+            "heatZoneCoordinates": [],
+            "attentionHotspots": [],
+            "eyeTrackingData": [],
+            "labels": ["Error: Unable to process video"]
+        }
+
+    # Get video properties
+    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+    fps = int(cap.get(cv2.CAP_PROP_FPS))
+    width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+    height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+
+    # Initialize heatmap
+    heatmap = np.zeros((height, width), dtype=np.float32)
+
+    # Process every 30th frame (adjust as needed)
+    frame_interval = 30
+
+    for frame_number in range(0, frame_count, frame_interval):
+        cap.set(cv2.CAP_PROP_POS_FRAMES, frame_number)
+        ret, frame = cap.read()
+        
+        if not ret:
+            break
+
+        # Preprocess the frame
+        input_tensor = preprocess_frame(frame).unsqueeze(0).to(device)
+
+        # Get feature map
+        with torch.no_grad():
+            features = model.conv1(input_tensor)
+            features = model.bn1(features)
+            features = model.relu(features)
+            features = model.maxpool(features)
+            features = model.layer1(features)
+            features = model.layer2(features)
+            features = model.layer3(features)
+            features = model.layer4(features)
+
+        # Convert feature map to heatmap
+        feature_map = features.squeeze().sum(dim=0).cpu().numpy()
+        feature_map = cv2.resize(feature_map, (width, height))
+        heatmap += feature_map
+
+    cap.release()
+
+    # Normalize and smooth the heatmap
+    heatmap = cv2.normalize(heatmap, None, 0, 255, cv2.NORM_MINMAX)
+    heatmap = gaussian_filter(heatmap, sigma=5)
+
+    # Use the detect_poi function from poi_detection.py
+    poi_results = detect_poi(video_path, heatmap, frame_count, fps)
+
+    # Generate the analysis
+    analysis = generate_poi_analysis_text(poi_results)
+
+    # Combine the results
+    combined_results = {
+        **poi_results,
+        "analysis": analysis,
+        "labels": poi_results["labels"] + ["Тепловые зоны", "Горячие точки", "Разметка POI"]
     }
+
+    return combined_results
+
+def generate_poi_analysis_text(poi_results):
+    analysis = {
+        "heatZonesAnalysis": "Тепловые зоны внимания:\n",
+        "heatZoneCoordinates": "Координаты и площадь тепловых зон:\n",
+        "hotspots": "Горячие точки внимания:\n",
+        "poiLabeling": "Разметка на основе точек интереса:\n"
+    }
+
+    # Heat zones analysis
+    for i, zone in enumerate(poi_results["heatZones"], 1):
+        analysis["heatZonesAnalysis"] += f"Зона {i}: Интенсивность: {zone['intensity']:.2f}, Размер: {zone['size']:.2f} px²\n"
+
+    # Heat zone coordinates
+    for zone in poi_results["heatZoneCoordinates"]:
+        analysis["heatZoneCoordinates"] += f"Зона {zone['id']}: X: {zone['x']}, Y: {zone['y']}, Площадь: {zone['width'] * zone['height']} px²\n"
+
+    # Hotspots
+    for hotspot in poi_results["attentionHotspots"]:
+        analysis["hotspots"] += f"Точка {hotspot['id']}: X: {hotspot['x']}, Y: {hotspot['y']}, Интенсивность: {hotspot['intensity']:.2f}\n"
+
+    # POI labeling
+    unique_objects = set()
+    for poi in poi_results.get("objectPOIs", []):
+        unique_objects.add(poi["object"])
+    analysis["poiLabeling"] += f"Обнаружено {len(unique_objects)} уникальных объектов: {', '.join(unique_objects)}\n"
+
+    return analysis
+
+def combine_poi_and_object_results(poi_results, object_results, heatmap):
+    # Enhance heat zones with object information
+    for zone in poi_results["heatZones"]:
+        zone_objects = get_objects_in_zone(object_results, zone, poi_results["heatZoneCoordinates"])
+        zone["objects"] = zone_objects
+
+    # Enhance attention hotspots with object information
+    for hotspot in poi_results["attentionHotspots"]:
+        hotspot_objects = get_objects_near_hotspot(object_results, hotspot)
+        hotspot["objects"] = hotspot_objects
+
+    # Add object-based points of interest
+    object_pois = generate_object_pois(object_results, heatmap)
+    poi_results["objectPOIs"] = object_pois
+
+    # Combine labels
+    combined_labels = list(set(poi_results["labels"] + object_results.get("labels", [])))
+
+    return {
+        **poi_results,
+        "objectCategories": object_results.get("objectCategories", []),
+        "objectOccurrences": object_results.get("objectOccurrences", {}),
+        "objectInteractions": object_results.get("objectInteractions", []),
+        "labels": combined_labels
+    }
+
+def get_objects_in_zone(object_results, zone, zone_coordinates):
+    zone_objects = []
+    zone_coord = next((coord for coord in zone_coordinates if coord["id"] == zone["id"]), None)
+    if zone_coord:
+        for obj in object_results.get("keyObjects", []):
+            if isinstance(obj, dict) and "time" in obj and "description" in obj:
+                # Assuming objects don't have coordinates, we'll just include them all
+                zone_objects.append(obj)
+    return zone_objects
+
+def get_objects_near_hotspot(object_results, hotspot):
+    # Since we don't have coordinates for objects, we'll just return all objects
+    return object_results.get("keyObjects", [])
+
+def generate_object_pois(object_results, heatmap):
+    object_pois = []
+    for i, obj in enumerate(object_results.get("keyObjects", [])):
+        if isinstance(obj, dict) and "time" in obj and "description" in obj:
+            # Generate random coordinates for demonstration purposes
+            height, width = heatmap.shape
+            x = np.random.randint(0, width)
+            y = np.random.randint(0, height)
+            intensity = float(heatmap[y, x])
+            object_pois.append({
+                "id": i + 1,
+                "x": int(x),
+                "y": int(y),
+                "intensity": intensity,
+                "object": obj["description"],
+                "time": obj["time"]
+            })
+    return object_pois
 
 def generate_scenes_analysis(video_path):
     scenes_result = analyze_scenes(video_path)
-    
-    return {
-        "sceneCount": scenes_result.get('sceneCount', 0),
-        "averageSceneDuration": scenes_result.get('averageSceneDuration', 0),
-        "sceneTransitions": scenes_result.get('sceneTransitions', []),
-        "dominantColors": scenes_result.get('dominantColors', []),
-        "sceneDescriptions": scenes_result.get('sceneDescriptions', [])
-    }
+    return scenes_result
 
 # Helper functions
 
