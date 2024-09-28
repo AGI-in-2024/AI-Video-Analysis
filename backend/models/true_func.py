@@ -8,6 +8,13 @@ import tempfile
 import os
 import numpy as np
 import cv2
+import torch
+from transformers import pipeline, AutoModelForSpeechSeq2Seq, AutoProcessor
+from pydub import AudioSegment
+from sklearn.preprocessing import MinMaxScaler
+from textblob import TextBlob
+import librosa
+import whisper
 
 def generate_summary(video_path):
     # Your analysis logic here
@@ -24,29 +31,119 @@ def generate_summary(video_path):
     }
 
 def generate_transcription(video_path):
+    # Extract audio from video
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_audio_file:
         audio_path = temp_audio_file.name
     
     try:
-        result = transcribe_audio_pipeline(video_path, audio_path)
+        extract_audio_from_video(video_path, audio_path)
         
-        analysis = result.get("analysis", {})
+        # Try to use CUDA if available, otherwise use CPU
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+        
+        try:
+            # Initialize Whisper model
+            model = whisper.load_model("base").to(device)
+            
+            # Perform transcription
+            result = model.transcribe(audio_path)
+        except RuntimeError as e:
+            if "CUDA out of memory" in str(e):
+                print("CUDA out of memory, falling back to CPU")
+                device = "cpu"
+                model = whisper.load_model("base").to(device)
+                result = model.transcribe(audio_path)
+            else:
+                raise e
+        
+        # Process the result and create the analysis
+        transcription = result["text"]
+        try:
+            analysis = analyze_transcription(transcription)
+        except LookupError:
+            # If punkt_tab is not available, use a simpler analysis
+            analysis = simple_analyze_transcription(transcription)
+        
         return {
-            "generationStatus": analysis.get("generationStatus", {"success": False, "model": "Unknown"}),
-            "languages": analysis.get("languages", [{"name": "Unknown", "primary": True}]),
-            "lipSyncAccuracy": calculate_lip_sync_accuracy(video_path, result["transcription"]),
-            "subtitlesStatus": {
-                "created": True,
-                "synchronized": True
-            },
-            "keyEvents": analysis.get("keyEvents", []),
-            "sentimentAnalysis": analysis.get("sentimentAnalysis", []),
-            "overallSentiment": analysis.get("overallSentiment", {"tone": "Unknown", "value": 0}),
-            "keywordAnalysis": analysis.get("keywordAnalysis", []),
-            "textLabels": analysis.get("textLabels", ["Error"])
+            "transcription": transcription,
+            "analysis": analysis
+        }
+    except Exception as e:
+        print(f"Error in generate_transcription: {str(e)}")
+        return {
+            "transcription": "",
+            "analysis": {
+                "generationStatus": {"success": False, "model": "Whisper-Base"},
+                "languages": [{"name": "Unknown", "primary": True}],
+                "lipSyncAccuracy": 0,
+                "subtitlesStatus": {"created": False, "synchronized": False},
+                "keyEvents": [],
+                "sentimentAnalysis": [],
+                "overallSentiment": {"tone": "Unknown", "value": 0},
+                "keywordAnalysis": [],
+                "textLabels": ["Error"]
+            }
         }
     finally:
         os.remove(audio_path)
+
+def simple_analyze_transcription(text):
+    # A simpler version of analyze_transcription that doesn't rely on punkt_tab
+    sentences = text.split('.')
+    key_events = [
+        {"time": f"{i*30:02d}:{00:02d}", "description": sentence.strip(), "type": "speech"}
+        for i, sentence in enumerate(sentences[:5])  # Take first 5 sentences as key events
+    ]
+    
+    return {
+        "generationStatus": {"success": True, "model": "Whisper-Base"},
+        "languages": [{"name": "Auto-detected", "primary": True}],
+        "lipSyncAccuracy": 95,  # Placeholder value
+        "subtitlesStatus": {"created": True, "synchronized": True},
+        "keyEvents": key_events,
+        "sentimentAnalysis": [],
+        "overallSentiment": {"tone": "Unknown", "value": 0},
+        "keywordAnalysis": [],
+        "textLabels": ["Base", "AI-Analyzed"]
+    }
+
+def analyze_transcription(text):
+    # Use a sentiment analysis pipeline
+    device = 0 if torch.cuda.is_available() else -1
+    sentiment_pipeline = pipeline("sentiment-analysis", model="distilbert-base-uncased-finetuned-sst-2-english", device=device)
+    
+    # Perform sentiment analysis
+    sentiment_result = sentiment_pipeline(text)[0]
+    sentiment_score = sentiment_result['score'] if sentiment_result['label'] == 'POSITIVE' else -sentiment_result['score']
+    
+    # Perform keyword analysis
+    blob = TextBlob(text)
+    keywords = blob.noun_phrases
+    
+    # Generate key events (simplified version)
+    sentences = text.split('.')
+    key_events = [
+        {"time": f"{i*30:02d}:{00:02d}", "description": sentence.strip(), "type": "speech"}
+        for i, sentence in enumerate(sentences[:5])  # Take first 5 sentences as key events
+    ]
+    
+    # Generate overall sentiment
+    overall_sentiment = "Positive" if sentiment_score > 0 else "Negative" if sentiment_score < 0 else "Neutral"
+    
+    return {
+        "generationStatus": {"success": True, "model": "Whisper-Base"},
+        "languages": [{"name": "Auto-detected", "primary": True}],
+        "lipSyncAccuracy": 95,  # Placeholder value
+        "subtitlesStatus": {"created": True, "synchronized": True},
+        "keyEvents": key_events,
+        "sentimentAnalysis": [
+            {"time": f"{i*60:02d}:00 - {(i+1)*60:02d}:00", "value": sentiment_score}
+            for i in range(len(sentences) // 60 + 1)
+        ],
+        "overallSentiment": {"tone": overall_sentiment, "value": sentiment_score},
+        "keywordAnalysis": [{"word": word, "count": keywords.count(word), "type": "noun_phrase"} for word in set(keywords)],
+        "textLabels": ["Base", "AI-Analyzed", overall_sentiment]
+    }
 
 def generate_audio_analysis(video_path):
     with tempfile.NamedTemporaryFile(delete=False, suffix='.wav') as temp_audio_file:
@@ -175,3 +272,40 @@ def detect_music_patterns(audio_path):
     # Implement music pattern detection
     # This is a placeholder implementation
     return ["Рок", "Классика", "Электронная"]
+
+def extract_keywords(text):
+    blob = TextBlob(text)
+    return [{"word": word, "count": count, "type": pos} 
+            for word, pos in blob.tags() 
+            for count in [blob.word_counts[word]]]
+
+def estimate_lip_sync_accuracy(video_path, timestamps):
+    # This is a placeholder. Actual lip sync accuracy estimation would require
+    # complex video analysis which is beyond the scope of this example.
+    return 95.0
+
+def extract_key_events(timestamps):
+    # This is a simplified version. You might want to implement more sophisticated
+    # event detection based on your specific requirements.
+    return [{"time": chunk["timestamp"][0], "description": chunk["text"], "type": "speech"} 
+            for chunk in timestamps]
+
+def generate_text_labels(text):
+    blob = TextBlob(text)
+    sentiment = blob.sentiment.polarity
+    subjectivity = blob.sentiment.subjectivity
+    
+    labels = []
+    if sentiment > 0.5:
+        labels.append("Positive")
+    elif sentiment < -0.5:
+        labels.append("Negative")
+    else:
+        labels.append("Neutral")
+    
+    if subjectivity > 0.5:
+        labels.append("Subjective")
+    else:
+        labels.append("Objective")
+    
+    return labels

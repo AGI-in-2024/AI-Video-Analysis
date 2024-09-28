@@ -16,25 +16,141 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { CheckedState } from "@radix-ui/react-checkbox"
 
 interface AnalysisSettings {
+  summary: boolean;
   object_detection: boolean;
-  ocr: boolean;
   transcription: boolean;
-  ai_insights: boolean;
   audio_analysis: boolean;
   symbol_detection: boolean;
   scene_detection: boolean;
   point_of_interest: boolean;
 }
 
-// Add this type definition
+// Add these type definitions at the top of the file
+type Language = {
+  name: string;
+  primary: boolean;
+};
+
+type KeyEvent = {
+  time: string;
+  description: string;
+  type: string;
+};
+
+type Keyword = {
+  word: string;
+  count: number;
+  type: string;
+};
+
+type HeatZone = {
+  time: string;
+  description: string;
+};
+
+type HeatZoneCoordinate = {
+  x: number;
+  y: number;
+  area: number;
+};
+
+type AttentionHotspot = {
+  time: string;
+  description: string;
+};
+
+type EyeTrackingData = {
+  time: string;
+  x: number;
+  y: number;
+};
+
+type KeyScene = {
+  time: string;
+  type: string;
+};
+
+type SceneTransition = {
+  time: string;
+  description: string;
+};
+
 type AnalysisResults = {
-  summary: any;
-  transcription: any;
-  audio: any;
-  symbols: any;
-  objects: any;
-  poi: any;
-  scenes: any;
+  summary?: {
+    duration: string;
+    overallTone: string;
+    riskLevel: string;
+    keyMoments: Record<string, string>;
+    labels: string[];
+  };
+  transcription?: {
+    transcription: string;
+    analysis: {
+      generationStatus: {
+        success: boolean;
+        model: string;
+      };
+      languages: Language[];
+      lipSyncAccuracy: number;
+      subtitlesStatus: {
+        created: boolean;
+        synchronized: boolean;
+      };
+      keyEvents: KeyEvent[];
+      sentimentAnalysis: any[]; // Update this type if you have more specific information
+      overallSentiment: {
+        tone: string;
+        value: number;
+      };
+      keywordAnalysis: Keyword[];
+      textLabels: string[];
+    };
+  };
+  audio?: {
+    keyEvents: KeyEvent[];
+    soundEffects: string[];
+    musicPatterns: string[];
+    audioFeatures: {
+      tempo: number;
+      pitch_mean: number;
+      loudness: number;
+      mel_spec_mean: number;
+      chroma_mean: number;
+    };
+    labels: string[];
+  };
+  symbols?: {
+    detectedSymbols: KeyEvent[];
+    riskAnalysis: {
+      riskLevel: string;
+      overallRisk: number;
+      riskLabel: string;
+    };
+    symbolOccurrences: Record<string, number>;
+    symbolCategories: string[];
+    labels: string[];
+  };
+  objects?: {
+    objectCategories: string[];
+    keyObjects: KeyEvent[];
+    objectOccurrences: Record<string, number>;
+    objectInteractions: KeyEvent[];
+    labels: string[];
+  };
+  poi?: {
+    heatZones: HeatZone[];
+    heatZoneCoordinates: HeatZoneCoordinate[];
+    attentionHotspots: AttentionHotspot[];
+    eyeTrackingData: EyeTrackingData[];
+    labels: string[];
+  };
+  scenes?: {
+    sceneTypes: string[];
+    keyScenes: KeyScene[];
+    sceneTransitions: SceneTransition[];
+    sceneDurations: number[];
+    labels: string[];
+  };
 };
 
 export function VideoAnalysis() {
@@ -43,10 +159,9 @@ export function VideoAnalysis() {
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [analysisSettings, setAnalysisSettings] = useState<AnalysisSettings>({
+    summary: true,
     object_detection: true,
-    ocr: true,
     transcription: true,
-    ai_insights: true,
     audio_analysis: true,
     symbol_detection: true,
     scene_detection: true,
@@ -187,7 +302,7 @@ function AdminPanel({ setActiveTab, results }: { setActiveTab: (tab: string) => 
   const [selectedLabels, setSelectedLabels] = useState<string[]>([])
 
   const predefinedLabels = [
-    "Безопасно", "18+", "Насилие", "Наркотики", "Алкоголь", "Нецензурная лексика"
+    "Безопасно", "18+", "Насилие", "Наркотики", "Алкогоь", "Нецензурная лексика"
   ]
 
   const handleLabelToggle = (label: string) => {
@@ -212,9 +327,8 @@ function AdminPanel({ setActiveTab, results }: { setActiveTab: (tab: string) => 
   }
 
   useEffect(() => {
-    if (results) {
-      // Update selectedLabels based on results
-      setSelectedLabels(results.labels || [])
+    if (results && results.summary) {
+      setSelectedLabels(results.summary.labels || [])
     }
   }, [results])
 
@@ -339,10 +453,10 @@ function AdminPanel({ setActiveTab, results }: { setActiveTab: (tab: string) => 
 }
 
 // Update the prop types for each analysis component
-function TranscriptionAnalysis({ results }: { results: any }) {
+function TranscriptionAnalysis({ results }: { results: AnalysisResults['transcription'] }) {
   if (!results) return <div>No transcription results available</div>
 
-  const [selectedEvent, setSelectedEvent] = useState(null)
+  const { transcription, analysis } = results;
 
   return (
     <Card>
@@ -353,67 +467,91 @@ function TranscriptionAnalysis({ results }: { results: any }) {
         <div className="space-y-6">
           <div>
             <h4 className="font-semibold mb-2">Статус генерации</h4>
-            <p>Успех: {results.generationStatus.success ? 'Да' : 'Нет'}</p>
-            <p>Модель: {results.generationStatus.model}</p>
+            <p>Успех: {analysis.generationStatus?.success ? 'Да' : 'Нет'}</p>
+            <p>Модель: {analysis.generationStatus?.model}</p>
           </div>
-          <div>
-            <h4 className="font-semibold mb-2">Языки</h4>
-            <ul className="list-disc list-inside">
-              {results.languages.map((lang, index) => (
-                <li key={index}>{lang.name} {lang.primary ? '(основной)' : ''}</li>
+          {analysis.languages && analysis.languages.length > 0 && (
+            <div>
+              <h4 className="font-semibold mb-2">Языки</h4>
+              <ul className="list-disc list-inside">
+                {analysis.languages.map((lang: Language, index: number) => (
+                  <li key={index}>{lang.name} {lang.primary ? '(основной)' : ''}</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {typeof analysis.lipSyncAccuracy === 'number' && (
+            <div>
+              <h4 className="font-semibold mb-2">Точность синхронизации губ</h4>
+              <p>{analysis.lipSyncAccuracy.toFixed(2)}%</p>
+            </div>
+          )}
+          {analysis.subtitlesStatus && (
+            <div>
+              <h4 className="font-semibold mb-2">Статус субтитров</h4>
+              <p>Созданы: {analysis.subtitlesStatus.created ? 'Да' : 'Нет'}</p>
+              <p>Синхронизированы: {analysis.subtitlesStatus.synchronized ? 'Да' : 'Нет'}</p>
+            </div>
+          )}
+          {analysis.keyEvents && analysis.keyEvents.length > 0 && (
+            <div>
+              <h4 className="font-semibold mb-2">Ключевые события</h4>
+              <ul className="list-disc list-inside">
+                {analysis.keyEvents.map((event: KeyEvent, index: number) => (
+                  <li key={index}>{event.time}: {event.description} (Тип: {event.type})</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {analysis.sentimentAnalysis && analysis.sentimentAnalysis.length > 0 && (
+            <div>
+              <h4 className="font-semibold mb-2">Анализ настроения</h4>
+              <ResponsiveContainer width="100%" height={200}>
+                <BarChart data={analysis.sentimentAnalysis}>
+                  <XAxis dataKey="time" />
+                  <YAxis />
+                  <Tooltip />
+                  <Bar dataKey="sentiment" fill="#8884d8" />
+                </BarChart>
+              </ResponsiveContainer>
+              {analysis.overallSentiment && (
+                <p>Общее настроение: {analysis.overallSentiment.tone} (Значение: {analysis.overallSentiment.value.toFixed(2)})</p>
+              )}
+            </div>
+          )}
+          {analysis.keywordAnalysis && analysis.keywordAnalysis.length > 0 && (
+            <div>
+              <h4 className="font-semibold mb-2">Анализ ключевых слов</h4>
+              <ul className="list-disc list-inside">
+                {analysis.keywordAnalysis.map((keyword, index) => (
+                  <li key={index}>{keyword.word} (Количество: {keyword.count}, Тип: {keyword.type})</li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {analysis.textLabels && analysis.textLabels.length > 0 && (
+            <div>
+              <h4 className="font-semibold mb-2">Текстовые метки</h4>
+              {analysis.textLabels.map((label, index) => (
+                <Badge key={index} variant="outline" className={index > 0 ? "ml-2" : ""}>{label}</Badge>
               ))}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-2">Точность синхронизации губ</h4>
-            <p>{results.lipSyncAccuracy}%</p>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-2">Статус субтитров</h4>
-            <p>Созданы: {results.subtitlesStatus.created ? 'Д��' : 'Нет'}</p>
-            <p>Синхронизированы: {results.subtitlesStatus.synchronized ? 'Да' : 'Нет'}</p>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-2">Ключевые события</h4>
-            <ul className="list-disc list-inside">
-              {results.keyEvents.map((event, index) => (
-                <li key={index}>{event.time}: {event.description} (Тип: {event.type})</li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-2">Анализ настроения</h4>
-            <ResponsiveContainer width="100%" height={200}>
-              <BarChart data={results.sentimentAnalysis}>
-                <XAxis dataKey="name" />
-                <YAxis />
-                <Tooltip />
-                <Bar dataKey="value" fill="#8884d8" />
-              </BarChart>
-            </ResponsiveContainer>
-            <p>Общее настроение: {results.overallSentiment.tone} (Значение: {results.overallSentiment.value})</p>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-2">Анализ ключевых слов</h4>
-            <ul className="list-disc list-inside">
-              {results.keywordAnalysis.map((keyword, index) => (
-                <li key={index}>{keyword.word} (Количество: {keyword.count}, Тип: {keyword.type})</li>
-              ))}
-            </ul>
-          </div>
-          <div>
-            <h4 className="font-semibold mb-2">Текстовые метки</h4>
-            {results.textLabels.map((label, index) => (
-              <Badge key={index} variant="outline" className={index > 0 ? "ml-2" : ""}>{label}</Badge>
-            ))}
-          </div>
+            </div>
+          )}
+          {transcription && (
+            <div>
+              <h4 className="font-semibold mb-2">Транскрипция</h4>
+              <ScrollArea className="h-[200px] w-full rounded-md border p-4">
+                <p>{transcription}</p>
+              </ScrollArea>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
   )
 }
 
-function SummaryAnalysis({ results }: { results: any }) {
+function SummaryAnalysis({ results }: { results: AnalysisResults['summary'] }) {
   if (!results) return <div>No analysis results available</div>
 
   return (
@@ -457,7 +595,7 @@ function SummaryAnalysis({ results }: { results: any }) {
   )
 }
 
-function AudioAnalysis({ results }: { results: any }) {
+function AudioAnalysis({ results }: { results: AnalysisResults['audio'] }) {
   if (!results) return <div>No audio analysis results available</div>
 
   return (
@@ -470,20 +608,20 @@ function AudioAnalysis({ results }: { results: any }) {
           <div>
             <h4 className="font-semibold mb-2">Ключевые звуковые события</h4>
             <ul className="list-disc list-inside">
-              {results.keyEvents.map((event, index) => (
+              {results.keyEvents.map((event: KeyEvent, index: number) => (
                 <li key={index}>{event.time}: {event.description}</li>
               ))}
             </ul>
           </div>
           <div>
             <h4 className="font-semibold mb-2">Звуковые эффекты</h4>
-            {results.soundEffects.map((effect, index) => (
+            {results.soundEffects.map((effect: string, index: number) => (
               <Badge key={index} className={index > 0 ? "ml-2" : ""}>{effect}</Badge>
             ))}
           </div>
           <div>
             <h4 className="font-semibold mb-2">Музыкальные паттерны</h4>
-            {results.musicPatterns.map((pattern, index) => (
+            {results.musicPatterns.map((pattern: string, index: number) => (
               <Badge key={index} className={index > 0 ? "ml-2" : ""}>{pattern}</Badge>
             ))}
           </div>
@@ -496,8 +634,8 @@ function AudioAnalysis({ results }: { results: any }) {
             <p>Среднее значение хромаграммы: {results.audioFeatures.chroma_mean.toFixed(2)}</p>
           </div>
           <div>
-            <h4 className="font-semibold mb-2">Разметка на основе звуков и музыки</h4>
-            {results.labels.map((label, index) => (
+            <h4 className="font-semibold mb-2">Разметка на основе звуко и музыки</h4>
+            {results.labels.map((label: string, index: number) => (
               <Badge key={index} variant="outline" className={index > 0 ? "ml-2" : ""}>{label}</Badge>
             ))}
           </div>
@@ -534,8 +672,8 @@ function SymbolsAnalysis({ results }: { results: any }) {
           <div>
             <h4 className="font-semibold mb-2">Частота появления символов</h4>
             <ul className="list-disc list-inside">
-              {Object.entries(results.symbolOccurrences || {}).map(([symbol, count]) => (
-                <li key={symbol}>{symbol}: {count} раз</li>
+              {Object.entries(results.symbolOccurrences || {}).map(([symbol, count]: [string, unknown]) => (
+                <li key={symbol}>{symbol}: {count as number} раз</li>
               ))}
             </ul>
           </div>
@@ -569,14 +707,14 @@ function ObjectsAnalysis({ results }: { results: any }) {
         <div className="space-y-4">
           <div>
             <h4 className="font-semibold mb-2">Категории объектов</h4>
-            {results.objectCategories.map((category, index) => (
+            {results.objectCategories.map((category: string, index: number) => (
               <Badge key={index} className={index > 0 ? "ml-2" : ""}>{category}</Badge>
             ))}
           </div>
           <div>
             <h4 className="font-semibold mb-2">Ключевые объекты</h4>
             <ul className="list-disc list-inside">
-              {results.keyObjects.map((object, index) => (
+              {results.keyObjects.map((object: KeyEvent, index: number) => (
                 <li key={index}>{object.time}: {object.description}</li>
               ))}
             </ul>
@@ -584,22 +722,22 @@ function ObjectsAnalysis({ results }: { results: any }) {
           <div>
             <h4 className="font-semibold mb-2">Частота появления объектов</h4>
             <ul className="list-disc list-inside">
-              {Object.entries(results.objectOccurrences).map(([object, count]) => (
-                <li key={object}>{object}: {count} раз</li>
+              {Object.entries(results.objectOccurrences || {}).map(([object, count]: [string, unknown]) => (
+                <li key={object}>{object}: {count as number} раз</li>
               ))}
             </ul>
           </div>
           <div>
             <h4 className="font-semibold mb-2">Взаимодействия объектов</h4>
             <ul className="list-disc list-inside">
-              {results.objectInteractions.map((interaction, index) => (
+              {results.objectInteractions.map((interaction: KeyEvent, index: number) => (
                 <li key={index}>{interaction.time}: {interaction.description}</li>
               ))}
             </ul>
           </div>
           <div>
-            <h4 className="font-semibold mb-2">Разметка на базе выявленных объектов</h4>
-            {results.labels.map((label, index) => (
+            <h4 className="font-semibold mb-2">Размтка на базе выявленных объектов</h4>
+            {results.labels.map((label: string, index: number) => (
               <Badge key={index} variant="outline" className={index > 0 ? "ml-2" : ""}>{label}</Badge>
             ))}
           </div>
@@ -622,21 +760,21 @@ function PointOfInterestAnalysis({ results }: { results: any }) {
           <div>
             <h4 className="font-semibold mb-2">Тепловые зоны внимания</h4>
             <ul className="list-disc list-inside">
-              {results.heatZones.map((zone, index) => (
+              {results.heatZones.map((zone: HeatZone, index: number) => (
                 <li key={index}>{zone.time}: {zone.description}</li>
               ))}
             </ul>
           </div>
           <div>
             <h4 className="font-semibold mb-2">Координаты и площадь тепловых зон</h4>
-            {results.heatZoneCoordinates.map((zone, index) => (
+            {results.heatZoneCoordinates.map((zone: HeatZoneCoordinate, index: number) => (
               <p key={index}>Зона {index + 1}: X: {zone.x}, Y: {zone.y}, Площадь: {zone.area}px²</p>
             ))}
           </div>
           <div>
             <h4 className="font-semibold mb-2">Горячие точки внимания</h4>
             <ul className="list-disc list-inside">
-              {results.attentionHotspots.map((hotspot, index) => (
+              {results.attentionHotspots.map((hotspot: AttentionHotspot, index: number) => (
                 <li key={index}>{hotspot.time}: {hotspot.description}</li>
               ))}
             </ul>
@@ -644,14 +782,14 @@ function PointOfInterestAnalysis({ results }: { results: any }) {
           <div>
             <h4 className="font-semibold mb-2">Данные отслеживания взгляда</h4>
             <ul className="list-disc list-inside">
-              {results.eyeTrackingData.map((data, index) => (
+              {results.eyeTrackingData.map((data: EyeTrackingData, index: number) => (
                 <li key={index}>{data.time}: X: {data.x}, Y: {data.y}</li>
               ))}
             </ul>
           </div>
           <div>
             <h4 className="font-semibold mb-2">Разметка на основе точек интереса</h4>
-            {results.labels.map((label, index) => (
+            {results.labels.map((label: string, index: number) => (
               <Badge key={index} variant="outline" className={index > 0 ? "ml-2" : ""}>{label}</Badge>
             ))}
           </div>
@@ -674,7 +812,7 @@ function ScenesAnalysis({ results }: { results: any }) {
           <div>
             <h4 className="font-semibold mb-2">Типы сцен</h4>
             {results.sceneTypes && results.sceneTypes.length > 0 ? (
-              results.sceneTypes.map((type, index) => (
+              results.sceneTypes.map((type: string, index: number) => (
                 <Badge key={index} className={index > 0 ? "ml-2" : ""}>{type}</Badge>
               ))
             ) : (
@@ -685,7 +823,7 @@ function ScenesAnalysis({ results }: { results: any }) {
             <h4 className="font-semibold mb-2">Ключевые сцены</h4>
             {results.keyScenes && results.keyScenes.length > 0 ? (
               <ul className="list-disc list-inside">
-                {results.keyScenes.map((scene, index) => (
+                {results.keyScenes.map((scene: KeyScene, index: number) => (
                   <li key={index}>{scene.time}: {scene.type}</li>
                 ))}
               </ul>
@@ -697,7 +835,7 @@ function ScenesAnalysis({ results }: { results: any }) {
             <h4 className="font-semibold mb-2">Переходы между сценами</h4>
             {results.sceneTransitions && results.sceneTransitions.length > 0 ? (
               <ul className="list-disc list-inside">
-                {results.sceneTransitions.map((transition, index) => (
+                {results.sceneTransitions.map((transition: SceneTransition, index: number) => (
                   <li key={index}>{transition.time}: {transition.description}</li>
                 ))}
               </ul>
@@ -709,7 +847,7 @@ function ScenesAnalysis({ results }: { results: any }) {
             <h4 className="font-semibold mb-2">Длительность сцен</h4>
             {results.sceneDurations && results.sceneDurations.length > 0 ? (
               <ul className="list-disc list-inside">
-                {results.sceneDurations.map((duration, index) => (
+                {results.sceneDurations.map((duration: number, index: number) => (
                   <li key={index}>Сцена {index + 1}: {duration} секунд</li>
                 ))}
               </ul>
@@ -720,7 +858,7 @@ function ScenesAnalysis({ results }: { results: any }) {
           <div>
             <h4 className="font-semibold mb-2">Разметка на базе сцен</h4>
             {results.labels && results.labels.length > 0 ? (
-              results.labels.map((label, index) => (
+              results.labels.map((label: string, index: number) => (
                 <Badge key={index} variant="outline" className={index > 0 ? "ml-2" : ""}>{label}</Badge>
               ))
             ) : (

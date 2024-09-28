@@ -34,6 +34,7 @@ from textblob import download_corpora
 import cv2
 import io
 import numpy as np
+import json  # Add this import at the top of the file with other imports
 
 def setup_nltk():
     try:
@@ -45,6 +46,11 @@ def setup_nltk():
 
     nltk.download('punkt')
     nltk.download('averaged_perceptron_tagger')
+    nltk.download('punkt_tab')  # Add this line to download punkt_tab
+
+    # Force CPU usage for PyTorch
+    import torch
+    torch.cuda.is_available = lambda: False
 
     # Download whisper model
     import whisper
@@ -52,8 +58,6 @@ def setup_nltk():
         whisper.load_model("base")
     except Exception as e:
         print(f"Error loading Whisper model: {str(e)}. Falling back to CPU.")
-        import torch
-        torch.cuda.is_available = lambda: False  # Force CPU usage for PyTorch
 
 def setup_textblob():
     import nltk
@@ -169,7 +173,7 @@ def analyze_video():
         return jsonify({'error': 'No video file provided'}), 400
     
     video_file = request.files['video']
-    analysis_settings = request.form.get('settings', '{}')
+    analysis_settings = json.loads(request.form.get('settings', '{}'))
     
     logger.info(f"Received video file: {video_file.filename}")
     logger.info(f"Analysis settings: {analysis_settings}")
@@ -181,15 +185,28 @@ def analyze_video():
         logger.info(f"Saved video to temporary file: {temp_video_path}")
     
     try:
-        results = {
-            "summary": generate_summary(temp_video_path),
-            "transcription": generate_transcription(temp_video_path),
-            "audio": generate_audio_analysis(temp_video_path),
-            "symbols": generate_symbols_analysis(temp_video_path),
-            "objects": generate_objects_analysis(temp_video_path),
-            "poi": generate_poi_analysis(temp_video_path),
-            "scenes": generate_scenes_analysis(temp_video_path)
-        }
+        results = {}
+        
+        if analysis_settings.get('summary', False):
+            results["summary"] = generate_summary(temp_video_path)
+        
+        if analysis_settings.get('transcription', False):
+            results["transcription"] = generate_transcription(temp_video_path)
+        
+        if analysis_settings.get('audio_analysis', False):
+            results["audio"] = generate_audio_analysis(temp_video_path)
+        
+        if analysis_settings.get('symbol_detection', False):
+            results["symbols"] = generate_symbols_analysis(temp_video_path)
+        
+        if analysis_settings.get('object_detection', False):
+            results["objects"] = generate_objects_analysis(temp_video_path)
+        
+        if analysis_settings.get('point_of_interest', False):
+            results["poi"] = generate_poi_analysis(temp_video_path)
+        
+        if analysis_settings.get('scene_detection', False):
+            results["scenes"] = generate_scenes_analysis(temp_video_path)
         
         # Ensure all values are JSON serializable
         serializable_results = ensure_serializable(results)
@@ -203,7 +220,8 @@ def analyze_video():
         logger.info("Cleaning up temporary files")
         os.remove(temp_video_path)
 
+setup_nltk()
+setup_textblob()
+
 if __name__ == '__main__':
-    setup_nltk()
-    setup_textblob()
     app.run(debug=True)
