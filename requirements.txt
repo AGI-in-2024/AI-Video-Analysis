@@ -22,3 +22,7 @@ numpy
 scikit-learn 
 textblob 
 librosa
+torch 
+torchvision 
+opencv-python-headless
+ultralytics

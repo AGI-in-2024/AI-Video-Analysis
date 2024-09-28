@@ -4,6 +4,7 @@ from src.symbols.symbol_detection import detect_symbols
 from src.objects.object_detection import detect_objects
 from src.poi.poi_detection import detect_poi
 from src.scenes.scene_analysis import analyze_scenes
+from src.detection.detection import detect_yolo10
 import tempfile
 import os
 import numpy as np
@@ -15,6 +16,12 @@ from sklearn.preprocessing import MinMaxScaler
 from textblob import TextBlob
 import librosa
 import whisper
+from torchvision.models.detection import fasterrcnn_resnet50_fpn_v2, FasterRCNN_ResNet50_FPN_V2_Weights, ssd300_vgg16, SSD300_VGG16_Weights
+from torchvision.transforms import functional as F
+from collections import defaultdict
+from tqdm import tqdm
+import logging
+import io
 
 def generate_summary(video_path):
     # Your analysis logic here
@@ -201,14 +208,47 @@ def generate_symbols_analysis(video_path):
     }
 
 def generate_objects_analysis(video_path):
-    objects_result = detect_objects(video_path)
+    print(f"Analyzing video: {video_path}")
     
+    # Read the video file as binary data
+    with open(video_path, 'rb') as video_file:
+        video_binary = video_file.read()
+    
+    # Perform object detection using YOLO
+    detections = detect_yolo10(video_binary, frequency=30)  # Process every 30th frame
+    
+    # Initialize variables
+    object_categories = set()
+    key_objects = []
+    object_occurrences = defaultdict(int)
+    object_interactions = []
+    
+    # Process detections
+    for frame_number, frame_detections in tqdm(detections.items(), desc="Processing detections"):
+        for detection in frame_detections:
+            class_name = detection['class']
+            confidence = detection['confidence']
+            
+            if confidence > 0.5:  # Confidence threshold
+                object_categories.add(class_name)
+                object_occurrences[class_name] += 1
+                
+                if class_name not in key_objects and len(key_objects) < 5:
+                    key_objects.append(class_name)
+    
+    # Generate object interactions (simplified)
+    if len(object_categories) >= 2:
+        object_interactions = [f"{obj1} interacts with {obj2}" 
+                               for obj1 in list(object_categories)[:5] 
+                               for obj2 in list(object_categories)[:5] 
+                               if obj1 != obj2][:5]
+
     return {
-        "objectCategories": objects_result.get('objectCategories', []),
-        "keyObjects": objects_result.get('keyObjects', []),
-        "objectOccurrences": objects_result.get('objectOccurrences', {}),
-        "objectInteractions": objects_result.get('objectInteractions', []),
-        "labels": objects_result.get('labels', [])
+        "objectCategories": list(object_categories),
+        "keyObjects": key_objects,
+        "objectOccurrences": dict(object_occurrences),
+        "objectInteractions": object_interactions,
+        "labels": ["Object Detection", "YOLOv10"] + list(object_categories)
     }
 
 def generate_poi_analysis(video_path):

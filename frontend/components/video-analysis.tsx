@@ -14,8 +14,29 @@ import { Label } from "@/components/ui/label"
 import { Checkbox } from "@/components/ui/checkbox"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { CheckedState } from "@radix-ui/react-checkbox"
+import { Switch } from "@/components/ui/switch"
+import { 
+  AlertDialog, 
+  AlertDialogContent, 
+  AlertDialogHeader, 
+  AlertDialogTitle, 
+  AlertDialogDescription, 
+  AlertDialogFooter, 
+  AlertDialogCancel, 
+  AlertDialogAction 
+} from "@/components/ui/alert-dialog"
 
 interface AnalysisSettings {
+  summary: boolean;
+  object_detection: boolean;
+  transcription: boolean;
+  audio_analysis: boolean;
+  symbol_detection: boolean;
+  scene_detection: boolean;
+  point_of_interest: boolean;
+}
+
+interface AdvancedSettings {
   summary: boolean;
   object_detection: boolean;
   transcription: boolean;
@@ -156,16 +177,28 @@ type AnalysisResults = {
 export function VideoAnalysis() {
   const [activeTab, setActiveTab] = useState("summary")
   const [isAnalyzing, setIsAnalyzing] = useState(false)
+  const [analysisProgress, setAnalysisProgress] = useState(0)
+  const [analysisLogs, setAnalysisLogs] = useState<string[]>([])
+  const [showAnalysisDialog, setShowAnalysisDialog] = useState(false)
   const [videoFile, setVideoFile] = useState<File | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [analysisSettings, setAnalysisSettings] = useState<AnalysisSettings>({
-    summary: true,
-    object_detection: true,
-    transcription: true,
-    audio_analysis: true,
-    symbol_detection: true,
-    scene_detection: true,
-    point_of_interest: true
+    summary: false,
+    object_detection: false,
+    transcription: false,
+    audio_analysis: false,
+    symbol_detection: false,
+    scene_detection: false,
+    point_of_interest: false
+  })
+  const [advancedSettings, setAdvancedSettings] = useState<AdvancedSettings>({
+    summary: false,
+    object_detection: false,
+    transcription: false,
+    audio_analysis: false,
+    symbol_detection: false,
+    scene_detection: false,
+    point_of_interest: false
   })
   const [analysisResults, setAnalysisResults] = useState<AnalysisResults | null>(null)
 
@@ -194,28 +227,82 @@ export function VideoAnalysis() {
     }
 
     setIsAnalyzing(true)
+    setShowAnalysisDialog(true)
+    setAnalysisProgress(0)
+    setAnalysisLogs([])
     
     const formData = new FormData()
     formData.append('video', videoFile)
     formData.append('settings', JSON.stringify(analysisSettings))
+    formData.append('advancedSettings', JSON.stringify(advancedSettings))
 
     try {
       const response = await fetch('http://localhost:5000/api/analyze-video', {
         method: 'POST',
         body: formData
       })
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`)
       }
-      const data = await response.json()
-      console.log("Received analysis results:", data)
-      setAnalysisResults(data.results)
+
+      const reader = response.body?.getReader()
+      if (!reader) {
+        throw new Error('Response body is not readable')
+      }
+
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+
+        const text = new TextDecoder().decode(value)
+        const lines = text.split('\n').filter(line => line.trim() !== '')
+
+        lines.forEach(line => {
+          try {
+            const data = JSON.parse(line)
+            if (data.progress) {
+              setAnalysisProgress(data.progress)
+            }
+            if (data.log) {
+              setAnalysisLogs(prev => [...prev, data.log])
+            }
+            if (data.results) {
+              setAnalysisResults(data.results)
+            }
+          } catch (e) {
+            console.error('Error parsing line:', line, e)
+          }
+        })
+      }
+
     } catch (error) {
       console.error('Error during analysis:', error)
       alert(`Error during analysis: ${error}`)
     } finally {
       setIsAnalyzing(false)
+      setShowAnalysisDialog(false)
     }
+  }
+
+  const handleToggleAllSettings = (checked: boolean) => {
+    setAnalysisSettings(prev => {
+      const newSettings = { ...prev }
+      Object.keys(newSettings).forEach(key => {
+        newSettings[key as keyof AnalysisSettings] = checked
+      })
+      return newSettings
+    })
+  }
+
+  const handleToggleAllAdvanced = (checked: boolean) => {
+    setAdvancedSettings(prev => {
+      const newSettings = { ...prev }
+      Object.keys(newSettings).forEach(key => {
+        newSettings[key as keyof AdvancedSettings] = checked
+      })
+      return newSettings
+    })
   }
 
   return (
@@ -241,24 +328,65 @@ export function VideoAnalysis() {
             <DialogTitle>Analysis Settings</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            <div className="flex justify-between items-center">
+              <Label>Select All</Label>
+              <Checkbox
+                checked={Object.values(analysisSettings).every(Boolean)}
+                onCheckedChange={handleToggleAllSettings}
+              />
+            </div>
             {Object.entries(analysisSettings).map(([key, value]) => (
-              <div key={key} className="flex items-center space-x-2">
-                <Checkbox
-                  id={key}
-                  checked={value}
-                  onCheckedChange={(checked: CheckedState) => 
-                    setAnalysisSettings(prev => ({ ...prev, [key]: checked === true }))
-                  }
-                />
+              <div key={key} className="flex items-center justify-between space-x-2">
                 <Label htmlFor={key}>{key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</Label>
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id={key}
+                    checked={value}
+                    onCheckedChange={(checked: CheckedState) => 
+                      setAnalysisSettings(prev => ({ ...prev, [key]: checked === true }))
+                    }
+                  />
+                  <Switch
+                    checked={advancedSettings[key as keyof AdvancedSettings]}
+                    onCheckedChange={(checked) => 
+                      setAdvancedSettings(prev => ({ ...prev, [key]: checked }))
+                    }
+                  />
+                </div>
               </div>
             ))}
+            <div className="flex justify-between items-center">
+              <Label>Use Advanced Algorithms for All</Label>
+              <Switch
+                checked={Object.values(advancedSettings).every(Boolean)}
+                onCheckedChange={handleToggleAllAdvanced}
+              />
+            </div>
             <Button onClick={handleAnalyze} disabled={isAnalyzing}>
               {isAnalyzing ? 'Analyzing...' : 'Start Analysis'}
             </Button>
           </div>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={showAnalysisDialog} onOpenChange={setShowAnalysisDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Analysis Progress</AlertDialogTitle>
+            <AlertDialogDescription>
+              <Progress value={analysisProgress} className="w-full" />
+              <ScrollArea className="h-[200px] w-full mt-4">
+                {analysisLogs.map((log, index) => (
+                  <p key={index}>{log}</p>
+                ))}
+              </ScrollArea>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="mt-6">
         <TabsList className="grid w-full grid-cols-4 lg:grid-cols-8">
@@ -515,7 +643,7 @@ function TranscriptionAnalysis({ results }: { results: AnalysisResults['transcri
                 </BarChart>
               </ResponsiveContainer>
               {analysis.overallSentiment && (
-                <p>Общее настроение: {analysis.overallSentiment.tone} (Значение: {analysis.overallSentiment.value.toFixed(2)})</p>
+                <p>Общее настроение: {analysis.overallSentiment.tone} (Значие: {analysis.overallSentiment.value.toFixed(2)})</p>
               )}
             </div>
           )}
@@ -788,7 +916,7 @@ function PointOfInterestAnalysis({ results }: { results: any }) {
             </ul>
           </div>
           <div>
-            <h4 className="font-semibold mb-2">Разметка на основе точек интереса</h4>
+            <h4 className="font-semibold mb-2">Разметка на основе точек итереса</h4>
             {results.labels.map((label: string, index: number) => (
               <Badge key={index} variant="outline" className={index > 0 ? "ml-2" : ""}>{label}</Badge>
             ))}

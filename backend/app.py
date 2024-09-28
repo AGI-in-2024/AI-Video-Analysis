@@ -5,15 +5,6 @@ from src.ocr import ocr_trocr_ru
 from src.transcription.audio import extract_audio_from_video
 from src.transcription.transcription import transcribe_audio_pipeline
 from src.ai_insights import generate_ai_insights
-from models.mock_func import (
-    generate_mock_summary,
-    generate_mock_transcription,
-    generate_mock_audio_analysis,
-    generate_mock_symbols_analysis,
-    generate_mock_objects_analysis,
-    generate_mock_poi_analysis,
-    generate_mock_scenes_analysis
-)
 from models.true_func import (
     generate_summary,
     generate_transcription,
@@ -35,6 +26,7 @@ import cv2
 import io
 import numpy as np
 import json  # Add this import at the top of the file with other imports
+from tqdm import tqdm
 
 def setup_nltk():
     try:
@@ -47,10 +39,6 @@ def setup_nltk():
     nltk.download('punkt')
     nltk.download('averaged_perceptron_tagger')
     nltk.download('punkt_tab')  # Add this line to download punkt_tab
-
-    # Force CPU usage for PyTorch
-    import torch
-    torch.cuda.is_available = lambda: False
 
     # Download whisper model
     import whisper
@@ -188,29 +176,37 @@ def analyze_video():
         results = {}
         
         if analysis_settings.get('summary', False):
+            logger.info("Generating summary")
             results["summary"] = generate_summary(temp_video_path)
         
         if analysis_settings.get('transcription', False):
+            logger.info("Generating transcription")
             results["transcription"] = generate_transcription(temp_video_path)
         
         if analysis_settings.get('audio_analysis', False):
+            logger.info("Performing audio analysis")
             results["audio"] = generate_audio_analysis(temp_video_path)
         
         if analysis_settings.get('symbol_detection', False):
+            logger.info("Performing symbol detection")
             results["symbols"] = generate_symbols_analysis(temp_video_path)
         
         if analysis_settings.get('object_detection', False):
+            logger.info("Performing object detection")
             results["objects"] = generate_objects_analysis(temp_video_path)
         
         if analysis_settings.get('point_of_interest', False):
+            logger.info("Detecting points of interest")
             results["poi"] = generate_poi_analysis(temp_video_path)
         
         if analysis_settings.get('scene_detection', False):
+            logger.info("Performing scene detection")
             results["scenes"] = generate_scenes_analysis(temp_video_path)
         
         # Ensure all values are JSON serializable
         serializable_results = ensure_serializable(results)
         
+        logger.info("Video analysis completed successfully")
         return jsonify({'results': serializable_results})
     except Exception as e:
         logger.error(f"Error during video analysis: {str(e)}", exc_info=True)
