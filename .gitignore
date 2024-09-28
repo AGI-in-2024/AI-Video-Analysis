@@ -4,7 +4,7 @@
 *.sublime-project
 *.sublime-workspace
 
-/test_set
+backend/test_set
 
 # Frontend
 frontend/node_modules

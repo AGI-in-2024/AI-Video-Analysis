@@ -1,5 +1,9 @@
-import MainComponent from "@/components/main-component"
+import { VideoAnalysisPlatformComponent } from '@/components/video-analysis-platform';
 
-export default function Page() {
-  return <MainComponent />
+export default function Home() {
+  return (
+    <main>
+      <VideoAnalysisPlatformComponent />
+    </main>
+  )
 }

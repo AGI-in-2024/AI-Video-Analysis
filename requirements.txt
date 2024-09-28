@@ -9,3 +9,9 @@ Pillow
 moviepy
 requests
 ultralytics
+librosa
+tensorflow
+scikit-learn
+torchaudio
+whisper
+tf-keras
