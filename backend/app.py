@@ -155,7 +155,12 @@ def ai_insights():
 
 @app.route('/api/analyze-video', methods=['POST'])
 def analyze_video():
-    logger.info("Received video analysis request")
+    print("Received request to /api/analyze-video")  # Add this line
+    logger.info("Received request to /api/analyze-video")
+    logger.info(f"Request headers: {request.headers}")
+    logger.info(f"Request form data: {request.form}")
+    logger.info(f"Request files: {request.files}")
+
     if 'video' not in request.files:
         logger.error("No video file provided in the request")
         return jsonify({'error': 'No video file provided'}), 400
@@ -195,7 +200,11 @@ def analyze_video():
         
         if analysis_settings.get('object_detection', False):
             logger.info("Performing object detection")
-            results["objects"] = generate_objects_analysis(temp_video_path)
+            try:
+                results["objects"] = generate_objects_analysis(temp_video_path)
+            except Exception as e:
+                logger.error(f"Error during object detection: {str(e)}")
+                results["objects"] = {"error": "Object detection failed", "details": str(e)}
         
         if analysis_settings.get('point_of_interest', False):
             logger.info("Detecting points of interest")
@@ -214,7 +223,6 @@ def analyze_video():
         logger.error(f"Error during video analysis: {str(e)}", exc_info=True)
         return jsonify({'error': f"An error occurred during video analysis: {str(e)}"}), 500
     finally:
-        # Clean up temporary file
         logger.info("Cleaning up temporary files")
         os.remove(temp_video_path)
 
@@ -233,6 +241,10 @@ def save_admin_decision():
 
 setup_nltk()
 setup_textblob()
+
+@app.route('/api/test', methods=['GET'])
+def test_endpoint():
+    return jsonify({'message': 'API is working'}), 200
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

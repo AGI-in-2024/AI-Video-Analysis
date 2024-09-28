@@ -32,13 +32,13 @@ export function AnalysisDialog({
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button disabled={!videoFile}>Analyze Video</Button>
+        <Button>Analyze Video</Button>
       </DialogTrigger>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>Analysis Settings</DialogTitle>
+          <DialogTitle>Video Analysis Settings</DialogTitle>
         </DialogHeader>
-        <div className="space-y-4">
+        <div className="grid gap-4 py-4">
           <div className="flex justify-between items-center">
             <Label>Select All</Label>
             <Checkbox
@@ -66,6 +66,16 @@ export function AnalysisDialog({
               </div>
             </div>
           ))}
+          <div className="flex items-center space-x-2">
+            <Checkbox
+              id="emotion_recognition"
+              checked={analysisSettings.emotion_recognition}
+              onCheckedChange={(checked) =>
+                setAnalysisSettings({ ...analysisSettings, emotion_recognition: !!checked })
+              }
+            />
+            <Label htmlFor="emotion_recognition">Emotion Recognition</Label>
+          </div>
           <div className="flex justify-between items-center">
             <Label>Use Advanced Algorithms for All</Label>
             <Switch

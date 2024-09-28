@@ -10,6 +10,7 @@ import { PointOfInterestAnalysis } from './analysis/PointOfInterestAnalysis';
 import { ScenesAnalysis } from './analysis/ScenesAnalysis';
 import { AdminPanel } from './analysis/AdminPanel';
 import { POIAnalysis } from './analysis/POIAnalysis';
+import { EmotionAnalysis } from './analysis/EmotionAnalysis';
 
 interface AnalysisTabsProps {
   activeTab: string;
@@ -30,8 +31,12 @@ export function AnalysisTabs({ activeTab, setActiveTab, analysisResults, childre
         {analysisResults?.objects && <TabsTrigger value="objects">Objects</TabsTrigger>}
         {analysisResults?.poi && <TabsTrigger value="poi">POI</TabsTrigger>}
         {analysisResults?.scenes && <TabsTrigger value="scenes">Scenes</TabsTrigger>}
+        <TabsTrigger value="emotion">Emotion</TabsTrigger>
       </TabsList>
       {children}
+      <TabsContent value="emotion">
+        {analysisResults?.emotion && <EmotionAnalysis results={analysisResults.emotion} />}
+      </TabsContent>
     </Tabs>
   );
 }

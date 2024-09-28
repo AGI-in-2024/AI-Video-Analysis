@@ -11,70 +11,13 @@ export interface AnalysisSettings {
 export interface AdvancedSettings extends AnalysisSettings {}
 
 export interface AnalysisResults {
-  summary?: {
-    duration: string;
-    overallTone: string;
-    riskLevel: string;
-    keyMoments: Record<string, string>;
-    labels: string[];
-  };
-  transcription?: {
-    transcription: string;
-    analysis: {
-      generationStatus: {
-        success: boolean;
-        model: string;
-      };
-      languages: Language[];
-      lipSyncAccuracy: number;
-      subtitlesStatus: {
-        created: boolean;
-        synchronized: boolean;
-      };
-      keyEvents: KeyEvent[];
-      sentimentAnalysis: any[]; // Update this type if you have more specific information
-      overallSentiment: {
-        tone: string;
-        value: number;
-      };
-      keywordAnalysis: Keyword[];
-      textLabels: string[];
-    };
-  };
-  audio?: {
-    keyEvents: KeyEvent[];
-    soundEffects: string[];
-    musicPatterns: string[];
-    audioFeatures: {
-      tempo: number;
-      pitch_mean: number;
-      loudness: number;
-      mel_spec_mean: number;
-      chroma_mean: number;
-    };
-    labels: string[];
-  };
-  symbols?: {
-    detectedSymbols: { symbol: string; confidence: number }[];
-    riskAnalysis: {
-      riskLevel: string;
-      overallRisk: number;
-      riskLabel: string;
-    };
-    symbolOccurrences: Record<string, number>;
-    symbolCategories: string[];
-    labels: string[];
-  };
-  objects?: {
-    objectCategories: string[];
-    keyObjects: KeyEvent[];
-    objectOccurrences: Record<string, number>;
-    objectInteractions: KeyEvent[];
-    labels: string[];
-  };
-  poi?: POIAnalysisResults;
-  scenes?: SceneAnalysisResults;
-  adminDecision?: AdminDecision;
+  summary?: SummaryAnalysis;
+  transcription?: TranscriptionAnalysis;
+  audio?: AudioAnalysis;
+  symbols?: SymbolsAnalysis;
+  objects?: ObjectsAnalysis;
+  poi?: POIAnalysis;
+  scenes?: ScenesAnalysis;
 }
 
 export type Language = {
@@ -163,4 +106,33 @@ export type AdminDecision = {
   copyrightViolation: boolean
   prohibitedContent: boolean
   recommendationLevel: 'Highly Recommended' | 'Recommended' | 'Neutral' | 'Not Recommended' | 'Highly Not Recommended'
+}
+
+export interface AudioAnalysis {
+  timeline: string[];
+  soundEffects: string[];
+  musicPatterns: string[];
+  audioFeatures: {
+    [key: string]: number;
+  };
+  emotionAnalysis: { Emotion: string; Score: string }[];
+  backgroundNoise: {
+    [key: string]: number;
+  };
+  transcription: string;
+}
+
+export interface TranscriptionAnalysis {
+  transcription: string;
+  analysis: {
+    generationStatus: { success: boolean; model: string };
+    languages: { name: string; primary: boolean }[];
+    lipSyncAccuracy: number;
+    subtitlesStatus: { created: boolean; synchronized: boolean };
+    keyEvents: { time: string; description: string; type: string }[];
+    sentimentAnalysis: { time: string; value: number }[];
+    overallSentiment: { tone: string; value: number };
+    keywordAnalysis: { word: string; count: number; type: string }[];
+    textLabels: string[];
+  };
 }

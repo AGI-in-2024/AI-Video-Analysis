@@ -15,8 +15,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from 
 import { Switch } from "@/components/ui/switch"
 import { AlertDialog, AlertDialogContent, AlertDialogHeader, AlertDialogTitle, AlertDialogDescription, AlertDialogFooter, AlertDialogCancel } from "@/components/ui/alert-dialog"
 import { ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip } from 'recharts'
+import { EmotionAnalysis } from '@/components/analysis/EmotionAnalysis'
 
-import { AnalysisSettings, AdvancedSettings, AnalysisResults, AdminDecision } from '@/types/analysis'
+import { AnalysisSettings, AdvancedSettings, AnalysisResults, AdminDecision, AudioAnalysisResults } from '@/types/analysis'
 import { useAnalysis } from '@/hooks/useAnalysis'
 import { AnalysisDialog } from '@/components/AnalysisDialog'
 import { AnalysisTabs } from '@/components/AnalysisTabs'
@@ -24,7 +25,7 @@ import { POIAnalysis } from '@/components/analysis/POIAnalysis'
 import { ScenesAnalysis } from '@/components/analysis/ScenesAnalysis'
 import { TranscriptionAnalysis } from '@/components/analysis/TranscriptionAnalysis'
 import { AdminPanel } from '@/components/analysis/AdminPanel'
-import { AudioAnalysis } from '@/components/analysis/AudioAnalysis'
+import { AudioAnalysis as AudioAnalysisComponent } from '@/components/analysis/AudioAnalysis'
 import { ObjectsAnalysis } from '@/components/analysis/ObjectsAnalysis'
 import { SymbolsAnalysis } from '@/components/analysis/SymbolsAnalysis'
 
@@ -159,13 +160,15 @@ export function VideoAnalysis() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Analysis Progress</AlertDialogTitle>
-            <AlertDialogDescription>
-              <Progress value={analysisProgress} className="w-full" />
-              <ScrollArea className="h-[200px] w-full mt-4">
-                {analysisLogs.map((log, index) => (
-                  <p key={index}>{log}</p>
-                ))}
-              </ScrollArea>
+            <AlertDialogDescription asChild>
+              <div>
+                <Progress value={analysisProgress} className="w-full" />
+                <ScrollArea className="h-[200px] w-full mt-4">
+                  {analysisLogs.map((log, index) => (
+                    <p key={index}>{log}</p>
+                  ))}
+                </ScrollArea>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -180,7 +183,7 @@ export function VideoAnalysis() {
         analysisResults={analysisResults}
       >
         <TabsContent value="summary">
-          {analysisResults?.summary && (
+          {analysisResults && (
             <AdminPanel 
               setActiveTab={setActiveTab} 
               results={analysisResults} 
@@ -195,7 +198,7 @@ export function VideoAnalysis() {
         </TabsContent>
         <TabsContent value="audio">
           {analysisResults?.audio && (
-            <AudioAnalysis results={analysisResults.audio} />
+            <AudioAnalysisComponent results={analysisResults.audio} />
           )}
         </TabsContent>
         <TabsContent value="symbols">
@@ -216,5 +219,25 @@ export function VideoAnalysis() {
         </TabsContent>
       </AnalysisTabs>
     </div>
+  )
+}
+
+function AudioAnalysis({ results }: { results: AudioAnalysisResults }) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle>Анализ аудио</CardTitle>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-4">
+          {/* ... (existing audio analysis display) */}
+          
+          <div>
+            <h4 className="font-semibold mb-2">Анализ эмоций</h4>
+            <EmotionAnalysis results={results.emotionAnalysis} />
+          </div>
+        </div>
+      </CardContent>
+    </Card>
   )
 }

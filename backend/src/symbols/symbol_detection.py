@@ -1,6 +1,13 @@
 import cv2
 import numpy as np
 from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input, decode_predictions
+import cv2
+import numpy as np
+import pytesseract
+from tensorflow.keras.applications.mobilenet_v2 import MobileNetV2, preprocess_input
+from tensorflow.keras.applications.resnet50 import ResNet50, preprocess_input as resnet_preprocess
+import tensorflow as tf
+import logging
 
 def detect_symbols(video_path):
     # Load the pre-trained MobileNetV2 model
@@ -61,3 +68,38 @@ def calculate_risk_analysis(detected_symbols):
 def format_time(seconds):
     minutes, seconds = divmod(int(seconds), 60)
     return f"{minutes:02d}:{seconds:02d}"
+
+
+
+
+class SymbolDetector:
+    def __init__(self):
+        self.feature_extractor = MobileNetV2(weights='imagenet', include_top=False, input_shape=(224, 224, 3))
+        self.logo_model = ResNet50(weights='imagenet')
+        self.gesture_model = None
+        try:
+            self.gesture_model = tf.keras.models.load_model('path/to/gesture_model.h5')
+        except FileNotFoundError:
+            logging.warning("Gesture model file not found. Gesture detection will be disabled.")
+        except Exception as e:
+            logging.error(f"Error loading gesture model: {str(e)}")
+
+    def detect_symbols(self, video_path):
+        # Implement symbol detection logic here
+        # Use self.gesture_model if it's available, otherwise skip gesture detection
+        
+        # Placeholder implementation
+        detected_symbols = [
+            {
+                'symbol': 'Example Symbol',
+                'confidence': 0.95,
+                'time': 1.5,
+                'x': 100,
+                'y': 200,
+                'category': 'Example Category'
+            }
+        ]
+        
+        return {
+            'detectedSymbols': detected_symbols
+        }
