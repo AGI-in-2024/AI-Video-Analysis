@@ -6,8 +6,15 @@
 Поиск с поимощью текст->изображение или изображение->изображение
 <img src="https://habrastorage.org/r/w1560/getpro/habr/upload_files/d20/11e/754/d2011e7548f96770e349510166d4ff25.png"/>
 
-- Пример выхода:
-<img src="https://www.mydeliciousmeals.com/images/recipephotos/large/seasoned-oven-baked-chicken-breast-bites-recipe1.jpg"/>
+- Пример выхода 1:
+<img src="https://static.1000.menu/img/content/36218/kurinoe-file-kusochkami-na-skovorode_1561494940_1_max.jpg"/>
+- Пример выхода 2:
+```
+курица
+```
+- Пример выхода для двух этих вариантов:
+<img src="./e7ae7b8f-2b00-48a1-8b05-e95c29927d3f.png"/>
+
 
 - Исходный код: [notebooks/video/detection/detection_example.ipynb](notebooks/video/detection/detection_example.ipynb), [src/detection/detection.py](src/detection/detection.py)
 ```python
