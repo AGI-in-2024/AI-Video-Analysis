@@ -253,5 +253,60 @@ def generate_objects_analysis(video_path):
 setup_nltk()
 setup_textblob()
 
+@app.route('/api/analyze/summary', methods=['POST'])
+def analyze_summary():
+    return process_analysis(generate_summary, 'summary')
+
+@app.route('/api/analyze/transcription', methods=['POST'])
+def analyze_transcription():
+    return process_analysis(generate_transcription, 'transcription')
+
+@app.route('/api/analyze/audio', methods=['POST'])
+def analyze_audio():
+    return process_analysis(generate_audio_analysis, 'audio')
+
+@app.route('/api/analyze/objects', methods=['POST'])
+def analyze_objects():
+    return process_analysis(generate_objects_analysis, 'objects')
+
+@app.route('/api/analyze/symbols', methods=['POST'])
+def analyze_symbols():
+    return process_analysis(generate_symbols_analysis, 'symbols')
+
+@app.route('/api/analyze/scenes', methods=['POST'])
+def analyze_scenes():
+    return process_analysis(generate_scenes_analysis, 'scenes')
+
+@app.route('/api/analyze/poi', methods=['POST'])
+def analyze_poi():
+    return process_analysis(generate_poi_analysis, 'poi')
+
+def process_analysis(analysis_function, analysis_type):
+    logger.info(f"Received {analysis_type} analysis request")
+    if 'video' not in request.files:
+        logger.error("No video file provided in the request")
+        return jsonify({'error': 'No video file provided'}), 400
+    
+    video_file = request.files['video']
+    advanced_settings = json.loads(request.form.get('advanced_settings', '{}'))
+    
+    logger.info(f"Received video file: {video_file.filename}")
+    logger.info(f"Advanced settings: {advanced_settings}")
+    
+    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_video_file:
+        video_file.save(temp_video_file.name)
+        temp_video_path = temp_video_file.name
+        logger.info(f"Saved video to temporary file: {temp_video_path}")
+    
+    try:
+        result = analysis_function(temp_video_path, **advanced_settings)
+        serializable_result = ensure_serializable(result)
+        return jsonify({analysis_type: serializable_result})
+    except Exception as e:
+        logger.error(f"Error during {analysis_type} analysis: {str(e)}", exc_info=True)
+        return jsonify({'error': f"An error occurred during {analysis_type} analysis: {str(e)}"}), 500
+    finally:
+        os.remove(temp_video_path)
+
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)
