@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -41,6 +41,9 @@ export function VideoAnalysisPlatformComponent() {
   const [showComplexSearch, setShowComplexSearch] = useState(false)
   const [showUploadModal, setShowUploadModal] = useState(false)
   const [uploadProgress, setUploadProgress] = useState(0)
+  const [uploadedVideoFile, setUploadedVideoFile] = useState<File | null>(null)
+  const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
 
   const handleVideoClick = (video: Video) => {
     setSelectedVideo(video)
@@ -54,31 +57,26 @@ export function VideoAnalysisPlatformComponent() {
   }
 
   const handleAddVideo = () => {
-    setShowUploadModal(true)
+    fileInputRef.current?.click()
   }
 
-  const handleUpload = (file: File) => {
-    // Simulating upload progress
-    let progress = 0
-    const interval = setInterval(() => {
-      progress += 10
-      setUploadProgress(progress)
-      if (progress >= 100) {
-        clearInterval(interval)
-        setShowUploadModal(false)
-        setUploadProgress(0)
-        // Add the new video to the list (in a real app, you'd get this from the server)
-        const newVideo: Video = {
-          id: videos.length + 1,
-          title: file.name,
-          thumbnail: "/placeholder.svg?height=120&width=200",
-          category: "Не аннотировано",
-          duration: "00:00" // You'd get the real duration from the file
-        }
-        videos.push(newVideo)
-        setSelectedVideo(newVideo)
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0]
+    if (file) {
+      setUploadedVideoFile(file)
+      const videoUrl = URL.createObjectURL(file)
+      setUploadedVideoUrl(videoUrl)
+      // Add the new video to the list (in a real app, you'd get this from the server)
+      const newVideo: Video = {
+        id: videos.length + 1,
+        title: file.name,
+        thumbnail: "/placeholder.svg?height=120&width=200",
+        category: "Не аннотировано",
+        duration: "00:00" // You'd get the real duration from the file
       }
-    }, 500)
+      videos.push(newVideo)
+      setSelectedVideo(newVideo)
+    }
   }
 
   return (
@@ -113,6 +111,13 @@ export function VideoAnalysisPlatformComponent() {
           <Button onClick={() => setShowComplexSearch(!showComplexSearch)} className="bg-pink-600 hover:bg-pink-700">
             {showComplexSearch ? 'Простой поиск' : 'Расширенный поиск'}
           </Button>
+          <input
+            type="file"
+            accept="video/*"
+            onChange={handleFileUpload}
+            style={{ display: 'none' }}
+            ref={fileInputRef}
+          />
           <Button onClick={handleAddVideo} className="bg-green-600 hover:bg-green-700">
             <Plus className="mr-2 h-4 w-4" />
             Добавить видео
@@ -140,11 +145,13 @@ export function VideoAnalysisPlatformComponent() {
             showAnalysis={showAnalysis}
             onClose={() => setSelectedVideo(null)}
             onAnalysisClick={() => setShowAnalysis(true)}
+            uploadedVideoFile={uploadedVideoFile}
+            uploadedVideoUrl={uploadedVideoUrl}
           />
         )}
 
         {showUploadModal && (
-          <UploadModal onClose={() => setShowUploadModal(false)} onUpload={handleUpload} progress={uploadProgress} />
+          <UploadModal onClose={() => setShowUploadModal(false)} onUpload={handleFileUpload} progress={uploadProgress} />
         )}
       </div>
     </div>
@@ -221,12 +228,14 @@ function VideoGrid({ videos, onVideoSelect }: { videos: Video[], onVideoSelect: 
   )
 }
 
-function VideoDetailView({ video, testerMode, showAnalysis, onClose, onAnalysisClick }: {
+function VideoDetailView({ video, testerMode, showAnalysis, onClose, onAnalysisClick, uploadedVideoFile, uploadedVideoUrl }: {
   video: Video,
   testerMode: boolean,
   showAnalysis: boolean,
   onClose: () => void,
-  onAnalysisClick: () => void
+  onAnalysisClick: () => void,
+  uploadedVideoFile: File | null,
+  uploadedVideoUrl: string | null
 }) {
   return (
     <motion.div 
@@ -248,12 +257,15 @@ function VideoDetailView({ video, testerMode, showAnalysis, onClose, onAnalysisC
               <X className="h-6 w-6" />
             </Button>
           </div>
-          <VideoPlayer video={video} />
-          {video.category === "Не аннотировано" && (
-            <Button onClick={onAnalysisClick} className="mt-4 bg-purple-600 hover:bg-purple-700">Автоаннотировать</Button>
-          )}
-          {showAnalysis && (
-            testerMode ? <VideoAnalysisMoc /> : <VideoAnalysis />
+          {showAnalysis ? (
+            testerMode ? <VideoAnalysisMoc /> : <VideoAnalysis videoFile={uploadedVideoFile} videoUrl={uploadedVideoUrl} />
+          ) : (
+            <>
+              <VideoPlayer video={video} uploadedVideoUrl={uploadedVideoUrl} />
+              {video.category === "Не аннотировано" && (
+                <Button onClick={onAnalysisClick} className="mt-4 bg-purple-600 hover:bg-purple-700">Автоаннотировать</Button>
+              )}
+            </>
           )}
         </div>
       </motion.div>
@@ -261,10 +273,14 @@ function VideoDetailView({ video, testerMode, showAnalysis, onClose, onAnalysisC
   )
 }
 
-function VideoPlayer({ video }: { video: Video }) {
+function VideoPlayer({ video, uploadedVideoUrl }: { video: Video, uploadedVideoUrl: string | null }) {
   return (
     <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden shadow-lg">
-      <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
+      {uploadedVideoUrl ? (
+        <video src={uploadedVideoUrl} controls className="w-full h-full object-contain" />
+      ) : (
+        <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
+      )}
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-4">
         <div className="flex items-center justify-between text-white">
           <div className="flex items-center space-x-2">
@@ -288,13 +304,12 @@ function VideoPlayer({ video }: { video: Video }) {
   )
 }
 
-function UploadModal({ onClose, onUpload, progress }: { onClose: () => void, onUpload: (file: File) => void, progress: number }) {
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (file) {
-      onUpload(file)
-    }
-  }
+function UploadModal({ onClose, onUpload, progress }: { 
+  onClose: () => void, 
+  onUpload: (event: React.ChangeEvent<HTMLInputElement>) => void, 
+  progress: number 
+}) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   return (
     <motion.div 
@@ -310,13 +325,19 @@ function UploadModal({ onClose, onUpload, progress }: { onClose: () => void, onU
         exit={{ scale: 0.9, y: 20 }}
       >
         <h2 className="text-2xl font-bold mb-4 text-gray-100">Загрузить видео</h2>
-        <Input type="file" accept="video/*" onChange={handleFileChange} className="mb-4 bg-gray-700 text-gray-100" />
+        <Input 
+          type="file" 
+          accept="video/*" 
+          onChange={onUpload} 
+          className="mb-4 bg-gray-700 text-gray-100" 
+          ref={fileInputRef}
+        />
         {progress > 0 && (
           <Progress value={progress} className="mb-4" />
         )}
         <div className="flex justify-end space-x-2">
           <Button variant="outline" onClick={onClose} className="text-gray-300 hover:text-white hover:border-purple-500">Отмена</Button>
-          <Button onClick={() => document.querySelector('input[type="file"]')?.click()} className="bg-purple-600 hover:bg-purple-700">Загрузить</Button>
+          <Button onClick={() => fileInputRef.current?.click()} className="bg-purple-600 hover:bg-purple-700">Загрузить</Button>
         </div>
       </motion.div>
     </motion.div>

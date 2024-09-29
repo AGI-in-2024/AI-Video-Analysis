@@ -11,13 +11,26 @@ export interface AnalysisSettings {
 export interface AdvancedSettings extends AnalysisSettings {}
 
 export interface AnalysisResults {
-  objects?: {
-    objectCategories: string[];
-    keyObjects: Array<{ time: string; description: string }>;
-    objectOccurrences: Record<string, number>;
-    objectInteractions: Array<{ time: string; description: string }>;
-    sceneClassifications: Array<{ time: string; scene: string }>;
+  summary?: {
+    duration: string;
+    overallTone: string;
+    riskLevel: string;
+    keyMoments: Record<string, string>;
     labels: string[];
+    sentimentPositive: number;
+    sentimentNeutral: number;
+    sentimentNegative: number;
+  };
+  transcription?: {
+    text: string;
+    // Add any other properties that might be part of the transcription results
+  };
+  audio?: {
+    timeline: string[];
+    soundEffects: string[];
+    musicPatterns: string[];
+    audioFeatures: Record<string, number>;
+    backgroundNoise: { level: string; type: string };
   };
   symbols?: {
     detectedSymbols: Array<{ symbol: string; confidence: number; time: string; location: string }>;
@@ -26,18 +39,16 @@ export interface AnalysisResults {
     symbolCategories: string[];
     labels: string[];
   };
-  audio?: {
-    timeline: string[];
-    soundEffects: string[];
-    musicPatterns: string[];
-    audioFeatures: Record<string, number>;
-    emotionAnalysis: Array<{ time: string; emotion: string; confidence: number }>;
-    backgroundNoise: { level: string; type: string };
-    transcription: string;
+  objects?: {
+    objectCategories: string[];
+    keyObjects: Array<{ time: string; description: string }>;
+    objectOccurrences: Record<string, number>;
+    objectInteractions: Array<{ time: string; description: string }>;
+    sceneClassifications: Array<{ time: string; scene: string }>;
+    labels: string[];
   };
   poi?: POIAnalysisResults;
   scenes?: SceneAnalysisResults;
-  // Add other analysis types as needed
 }
 
 export type Language = {

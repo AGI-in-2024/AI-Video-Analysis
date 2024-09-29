@@ -12,7 +12,7 @@ export function useAnalysis(
   const [analysisLogs, setAnalysisLogs] = useState<string[]>([]);
   const [showAnalysisDialog, setShowAnalysisDialog] = useState(false);
 
-  const handleAnalyze = async () => {
+  const handleAnalyze = useCallback(async () => {
     if (!videoFile) return;
 
     setIsAnalyzing(true);
@@ -26,32 +26,35 @@ export function useAnalysis(
     formData.append('advanced_settings', JSON.stringify(advancedSettings));
 
     try {
-      console.log('Sending request to /api/analyze-video');
+      setAnalysisLogs(prev => [...prev, 'Sending request to server...']);
       const response = await fetch('http://localhost:5000/api/analyze-video', {
         method: 'POST',
         body: formData,
       });
 
-      console.log('Response status:', response.status);
-      console.log('Response headers:', response.headers);
+      setAnalysisLogs(prev => [...prev, `Server responded with status: ${response.status}`]);
 
       if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Error response body:', errorText);
-        throw new Error(`HTTP error! status: ${response.status}, body: ${errorText}`);
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       const data = await response.json();
-      console.log('Received data:', data);
+      setAnalysisLogs(prev => [...prev, 'Received response from server']);
+
+      if (data.error) {
+        throw new Error(data.error);
+      }
+
       onAnalysisComplete(data.results);
-    } catch (error: unknown) {
+      setAnalysisLogs(prev => [...prev, 'Analysis completed successfully']);
+    } catch (error) {
       console.error('Error during analysis:', error);
       setAnalysisLogs(prev => [...prev, `Error: ${error instanceof Error ? error.message : String(error)}`]);
     } finally {
       setIsAnalyzing(false);
-      setShowAnalysisDialog(false);
+      setAnalysisProgress(100);
     }
-  };
+  }, [videoFile, analysisSettings, advancedSettings, onAnalysisComplete]);
 
   return {
     isAnalyzing,

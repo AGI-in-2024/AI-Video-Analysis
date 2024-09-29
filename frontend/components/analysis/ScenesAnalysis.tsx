@@ -46,6 +46,8 @@ export function ScenesAnalysis({ results }: ScenesAnalysisProps) {
   const [activeTab, setActiveTab] = useState("complex")
   const [selectedScene, setSelectedScene] = useState<Scene | null>(null)
 
+  if (!results) return <div className="text-gray-400">No scenes analysis results available.</div>
+
   const renderComplexAnalysis = () => (
     <div>
       <p>Total Scenes: {results.complex.total_scenes}</p>
@@ -93,11 +95,11 @@ export function ScenesAnalysis({ results }: ScenesAnalysisProps) {
   )
 
   return (
-    <Card>
+    <Card className="bg-gray-800 border-gray-700">
       <CardHeader>
-        <CardTitle>Scene Analysis</CardTitle>
+        <CardTitle className="text-gray-100">Scene Analysis</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="text-gray-300">
         <Tabs value={activeTab} onValueChange={setActiveTab}>
           <TabsList>
             <TabsTrigger value="complex">Complex Analysis</TabsTrigger>

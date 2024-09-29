@@ -44,20 +44,16 @@ export function AdminPanel({ results, setActiveTab, onDecisionMade }: {
     onDecisionMade(decision)
   }
 
-  const handleContentLabel = (label: AdminDecision['contentLabel']) => {
-    setContentLabel(label)
-  }
-
-  const handleRecommendationLevel = (level: AdminDecision['recommendationLevel']) => {
-    setRecommendationLevel(level)
+  if (!results) {
+    return <div>No analysis results available.</div>
   }
 
   return (
-    <Card className="w-full">
+    <Card className="w-full bg-gray-800 border-gray-700">
       <CardHeader>
-        <CardTitle>Панель администратора</CardTitle>
+        <CardTitle className="text-gray-100">Панель администратора</CardTitle>
       </CardHeader>
-      <CardContent>
+      <CardContent className="text-gray-300">
         <div className="space-y-6">
           <div>
             <h4 className="font-semibold mb-2">Маркировка контента</h4>
@@ -130,7 +126,7 @@ export function AdminPanel({ results, setActiveTab, onDecisionMade }: {
           </div>
         </div>
       </CardContent>
-      <Button onClick={saveDecision} className="w-full mt-4">
+      <Button onClick={saveDecision} className="w-full mt-4 bg-purple-600 hover:bg-purple-700">
         Сохранить решение
       </Button>
     </Card>

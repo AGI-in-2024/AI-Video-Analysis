@@ -30,7 +30,7 @@ from tqdm import tqdm
 
 def setup_nltk():
     try:
-        _create_unverified_https_context = ssl._create_unverified_context
+        _create_unverified_https_context = ssl._create_unverified_https_context
     except AttributeError:
         pass
     else:
@@ -178,44 +178,35 @@ def analyze_video():
         results = {}
         
         if analysis_settings.get('summary', False):
-            logger.info("Generating summary")
             results["summary"] = generate_summary(temp_video_path)
         
         if analysis_settings.get('transcription', False):
-            logger.info("Generating transcription")
             results["transcription"] = generate_transcription(temp_video_path)
         
         if analysis_settings.get('audio_analysis', False):
-            logger.info("Performing audio analysis")
             results["audio"] = generate_audio_analysis(temp_video_path)
         
         if analysis_settings.get('object_detection', False):
-            logger.info("Performing object detection")
             results["objects"] = generate_objects_analysis(temp_video_path)
         
         if analysis_settings.get('symbol_detection', False):
-            logger.info("Performing symbol detection")
             results["symbols"] = generate_symbols_analysis(temp_video_path)
         
         if analysis_settings.get('scene_detection', False):
-            logger.info("Performing scene detection")
             results["scenes"] = generate_scenes_analysis(temp_video_path)
         
         if analysis_settings.get('point_of_interest', False):
-            logger.info("Detecting points of interest")
             results["poi"] = generate_poi_analysis(temp_video_path)
         
         # Ensure all values are JSON serializable
         serializable_results = ensure_serializable(results)
         
-        logger.info("Video analysis completed successfully")
         return jsonify({'results': serializable_results})
     except Exception as e:
         logger.error(f"Error during video analysis: {str(e)}", exc_info=True)
         return jsonify({'error': f"An error occurred during video analysis: {str(e)}"}), 500
     finally:
         # Clean up temporary file
-        logger.info("Cleaning up temporary files")
         os.remove(temp_video_path)
 
 @app.route('/api/admin-decision', methods=['POST'])
@@ -230,6 +221,34 @@ def save_admin_decision():
     # This would depend on your specific database structure and requirements
     
     return jsonify({'message': 'Decision saved successfully'}), 200
+
+def generate_objects_analysis(video_path):
+    # This is a mock function. In a real scenario, you'd implement actual object detection here.
+    return {
+        "objectCategories": ["Человек", "Автомобиль", "Здание", "Животное", "Мебель"],
+        "keyObjects": [
+            {"time": "0:15", "description": "Группа людей на улице"},
+            {"time": "1:30", "description": "Красный автомобиль проезжает мимо"},
+            {"time": "2:45", "description": "Кошка сидит на подоконнике"}
+        ],
+        "objectOccurrences": {
+            "Человек": 15,
+            "Автомобиль": 8,
+            "Здание": 5,
+            "Животное": 3,
+            "Мебель": 10
+        },
+        "objectInteractions": [
+            {"time": "0:30", "description": "Человек садится в автомобиль"},
+            {"time": "1:45", "description": "Кошка запрыгивает на диван"}
+        ],
+        "sceneClassifications": [
+            {"time": "0:00", "scene": "Городская улица"},
+            {"time": "1:00", "scene": "Интерьер квартиры"},
+            {"time": "2:00", "scene": "Парк"}
+        ],
+        "labels": ["Городской", "Домашний", "Природа"]
+    }
 
 setup_nltk()
 setup_textblob()

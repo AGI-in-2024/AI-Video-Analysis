@@ -17,20 +17,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 import { AnalysisSettings, AdvancedSettings, AnalysisResults, AdminDecision } from '@/types/analysis'
 import { useAnalysis } from '@/hooks/useAnalysis'
-import { AnalysisTabs } from '@/components/AnalysisTabs'
-import { POIAnalysis } from '@/components/analysis/POIAnalysis'
-import { ScenesAnalysis } from '@/components/analysis/ScenesAnalysis'
-import { TranscriptionAnalysis } from '@/components/analysis/TranscriptionAnalysis'
-import { AdminPanel } from '@/components/analysis/AdminPanel'
 import { AudioAnalysis } from '@/components/analysis/AudioAnalysis'
 import { ObjectsAnalysis } from '@/components/analysis/ObjectsAnalysis'
+import { PointOfInterestAnalysis } from '@/components/analysis/PointOfInterestAnalysis'
+import { ScenesAnalysis } from '@/components/analysis/ScenesAnalysis'
 import { SymbolsAnalysis } from '@/components/analysis/SymbolsAnalysis'
+import { SummaryAnalysis } from '@/components/analysis/SummaryAnalysis'
+import { TranscriptionAnalysis } from '@/components/analysis/TranscriptionAnalysis'
 
-export function VideoAnalysis() {
+export function VideoAnalysis({ videoFile, videoUrl }: { videoFile: File | null, videoUrl: string | null }) {
   const [activeTab, setActiveTab] = useState("summary")
-  const [videoFile, setVideoFile] = useState<File | null>(null)
-  const [videoUrl, setVideoUrl] = useState<string | null>(null)
-  const fileInputRef = useRef<HTMLInputElement>(null)
   const videoRef = useRef<HTMLVideoElement>(null)
   const [analysisSettings, setAnalysisSettings] = useState<AnalysisSettings>({
     summary: false,
@@ -67,6 +63,8 @@ export function VideoAnalysis() {
   const [clipStart, setClipStart] = useState<number | null>(null)
   const [clipEnd, setClipEnd] = useState<number | null>(null)
 
+  const [allAnalysisEnabled, setAllAnalysisEnabled] = useState(false)
+
   const { 
     isAnalyzing, 
     analysisProgress, 
@@ -83,15 +81,6 @@ export function VideoAnalysis() {
       setActiveTab("summary")
     }, [])
   )
-
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0]
-    if (file) {
-      setVideoFile(file)
-      const videoUrl = URL.createObjectURL(file)
-      setVideoUrl(videoUrl)
-    }
-  }
 
   const handleToggleAllSettings = (checked: boolean) => {
     setAnalysisSettings(prev => {
@@ -269,19 +258,45 @@ export function VideoAnalysis() {
     return `${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`
   }
 
+  const handleToggleAllAnalysis = (checked: boolean) => {
+    setAllAnalysisEnabled(checked)
+    setAnalysisSettings(prev => {
+      const newSettings = { ...prev }
+      Object.keys(newSettings).forEach(key => {
+        newSettings[key as keyof AnalysisSettings] = checked
+      })
+      return newSettings
+    })
+  }
+
   const AnalysisSettingsDialog = () => (
     <Card className="bg-gray-800 border-gray-700">
       <CardHeader>
         <CardTitle className="text-gray-100">Analysis Settings</CardTitle>
       </CardHeader>
       <CardContent className="space-y-4">
+        <div className="flex items-center justify-between">
+          <Label htmlFor="all-analysis" className="text-gray-300">Enable All Analysis</Label>
+          <Switch
+            id="all-analysis"
+            checked={allAnalysisEnabled}
+            onCheckedChange={handleToggleAllAnalysis}
+            className="data-[state=checked]:bg-purple-600"
+          />
+        </div>
+        <div className="border-t border-gray-700 my-4"></div>
         {Object.entries(analysisSettings).map(([key, value]) => (
           <div key={key} className="flex items-center justify-between">
             <Label htmlFor={key} className="text-gray-300 capitalize">{key.replace('_', ' ')}</Label>
             <Switch
               id={key}
               checked={value}
-              onCheckedChange={(checked) => setAnalysisSettings(prev => ({ ...prev, [key]: checked }))}
+              onCheckedChange={(checked) => {
+                setAnalysisSettings(prev => ({ ...prev, [key]: checked }))
+                setAllAnalysisEnabled(
+                  Object.values({ ...analysisSettings, [key]: checked }).every(Boolean)
+                )
+              }}
               className="data-[state=checked]:bg-purple-600"
             />
           </div>
@@ -299,18 +314,6 @@ export function VideoAnalysis() {
 
   return (
     <div className="bg-gray-900 text-gray-100 min-h-screen p-4">
-      <input
-        type="file"
-        accept="video/*"
-        onChange={handleFileUpload}
-        style={{ display: 'none' }}
-        ref={fileInputRef}
-      />
-      <Button onClick={() => fileInputRef.current?.click()} className="mb-4 bg-purple-600 hover:bg-purple-700">
-        <Upload className="mr-2 h-4 w-4" /> Upload Video
-      </Button>
-      {videoFile && <p className="mb-4 text-gray-300">Selected file: {videoFile.name}</p>}
-
       {videoUrl && (
         <div className="relative mb-4">
           <video
@@ -397,58 +400,62 @@ export function VideoAnalysis() {
               <Progress value={analysisProgress} className="w-full" />
               <ScrollArea className="h-[200px] w-full mt-4 border border-gray-700 rounded">
                 {analysisLogs.map((log, index) => (
-                  <p key={index} className="p-2 border-b border-gray-700 last:border-b-0">{log}</p>
+                  <div key={index} className="p-2 border-b border-gray-700 last:border-b-0">
+                    {log.startsWith('Error') ? (
+                      <span className="text-red-500">{log}</span>
+                    ) : (
+                      <span>{log}</span>
+                    )}
+                  </div>
                 ))}
               </ScrollArea>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-gray-700 text-white hover:bg-gray-600">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-gray-700 text-white hover:bg-gray-600">Close</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <AnalysisTabs
-        activeTab={activeTab}
-        setActiveTab={setActiveTab}
-        analysisResults={analysisResults}
-      >
-        <TabsContent value="summary">
-          {analysisResults && (
-            <AdminPanel 
-              setActiveTab={setActiveTab} 
-              results={analysisResults} 
-              onDecisionMade={handleAdminDecision}
-            />
-          )}
-        </TabsContent>
-        <TabsContent value="transcription">
-          {analysisResults?.audio?.transcription && (
-            <TranscriptionAnalysis results={analysisResults.audio.transcription} />
-          )}
-        </TabsContent>
-        <TabsContent value="audio">
-          {analysisResults?.audio && (
-            <AudioAnalysis results={analysisResults.audio} />
-          )}
-        </TabsContent>
-        <TabsContent value="symbols">
-          {analysisResults?.symbols && (
-            <SymbolsAnalysis results={analysisResults.symbols} />
-          )}
-        </TabsContent>
-        <TabsContent value="objects">
-          {analysisResults?.objects && (
-            <ObjectsAnalysis results={analysisResults.objects} />
-          )}
-        </TabsContent>
-        <TabsContent value="poi">
-          {analysisResults?.poi && <POIAnalysis results={analysisResults.poi} />}
-        </TabsContent>
-        <TabsContent value="scenes">
-          {analysisResults?.scenes && <ScenesAnalysis results={analysisResults.scenes} />}
-        </TabsContent>
-      </AnalysisTabs>
+      {analysisResults && (
+        <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <TabsList>
+            <TabsTrigger value="summary">Summary</TabsTrigger>
+            <TabsTrigger value="transcription">Transcription</TabsTrigger>
+            <TabsTrigger value="audio">Audio</TabsTrigger>
+            <TabsTrigger value="symbols">Symbols</TabsTrigger>
+            <TabsTrigger value="objects">Objects</TabsTrigger>
+            <TabsTrigger value="poi">Points of Interest</TabsTrigger>
+            <TabsTrigger value="scenes">Scenes</TabsTrigger>
+          </TabsList>
+          <TabsContent value="summary">
+            {analysisResults.summary && (
+              <SummaryAnalysis 
+                results={analysisResults.summary} 
+                onDecisionMade={handleAdminDecision}
+              />
+            )}
+          </TabsContent>
+          <TabsContent value="transcription">
+            {analysisResults.transcription && <TranscriptionAnalysis results={analysisResults.transcription} />}
+          </TabsContent>
+          <TabsContent value="audio">
+            {analysisResults.audio && <AudioAnalysis results={analysisResults.audio} />}
+          </TabsContent>
+          <TabsContent value="symbols">
+            {analysisResults.symbols && <SymbolsAnalysis results={analysisResults.symbols} />}
+          </TabsContent>
+          <TabsContent value="objects">
+            {analysisResults.objects && <ObjectsAnalysis results={analysisResults.objects} />}
+          </TabsContent>
+          <TabsContent value="poi">
+            {analysisResults.poi && <PointOfInterestAnalysis results={analysisResults.poi} />}
+          </TabsContent>
+          <TabsContent value="scenes">
+            {analysisResults.scenes && <ScenesAnalysis results={analysisResults.scenes} />}
+          </TabsContent>
+        </Tabs>
+      )}
     </div>
   )
 }
