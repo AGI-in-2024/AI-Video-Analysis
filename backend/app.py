@@ -155,12 +155,7 @@ def ai_insights():
 
 @app.route('/api/analyze-video', methods=['POST'])
 def analyze_video():
-    print("Received request to /api/analyze-video")  # Add this line
-    logger.info("Received request to /api/analyze-video")
-    logger.info(f"Request headers: {request.headers}")
-    logger.info(f"Request form data: {request.form}")
-    logger.info(f"Request files: {request.files}")
-
+    logger.info("Received video analysis request")
     if 'video' not in request.files:
         logger.error("No video file provided in the request")
         return jsonify({'error': 'No video file provided'}), 400
@@ -194,25 +189,21 @@ def analyze_video():
             logger.info("Performing audio analysis")
             results["audio"] = generate_audio_analysis(temp_video_path)
         
+        if analysis_settings.get('object_detection', False):
+            logger.info("Performing object detection")
+            results["objects"] = generate_objects_analysis(temp_video_path)
+        
         if analysis_settings.get('symbol_detection', False):
             logger.info("Performing symbol detection")
             results["symbols"] = generate_symbols_analysis(temp_video_path)
         
-        if analysis_settings.get('object_detection', False):
-            logger.info("Performing object detection")
-            try:
-                results["objects"] = generate_objects_analysis(temp_video_path)
-            except Exception as e:
-                logger.error(f"Error during object detection: {str(e)}")
-                results["objects"] = {"error": "Object detection failed", "details": str(e)}
+        if analysis_settings.get('scene_detection', False):
+            logger.info("Performing scene detection")
+            results["scenes"] = generate_scenes_analysis(temp_video_path)
         
         if analysis_settings.get('point_of_interest', False):
             logger.info("Detecting points of interest")
             results["poi"] = generate_poi_analysis(temp_video_path)
-        
-        if analysis_settings.get('scene_detection', False):
-            logger.info("Performing scene detection")
-            results["scenes"] = generate_scenes_analysis(temp_video_path)
         
         # Ensure all values are JSON serializable
         serializable_results = ensure_serializable(results)
@@ -223,6 +214,7 @@ def analyze_video():
         logger.error(f"Error during video analysis: {str(e)}", exc_info=True)
         return jsonify({'error': f"An error occurred during video analysis: {str(e)}"}), 500
     finally:
+        # Clean up temporary file
         logger.info("Cleaning up temporary files")
         os.remove(temp_video_path)
 
@@ -241,10 +233,6 @@ def save_admin_decision():
 
 setup_nltk()
 setup_textblob()
-
-@app.route('/api/test', methods=['GET'])
-def test_endpoint():
-    return jsonify({'message': 'API is working'}), 200
 
 if __name__ == '__main__':
     app.run(debug=True, host='0.0.0.0', port=5000)

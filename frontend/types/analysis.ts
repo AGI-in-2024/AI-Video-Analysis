@@ -6,18 +6,39 @@ export interface AnalysisSettings {
   symbol_detection: boolean;
   scene_detection: boolean;
   point_of_interest: boolean;
+  emotion_recognition: boolean; // Add this line
 }
 
 export interface AdvancedSettings extends AnalysisSettings {}
 
 export interface AnalysisResults {
-  summary?: SummaryAnalysis;
-  transcription?: TranscriptionAnalysis;
-  audio?: AudioAnalysis;
-  symbols?: SymbolsAnalysis;
-  objects?: ObjectsAnalysis;
-  poi?: POIAnalysis;
-  scenes?: ScenesAnalysis;
+  objects?: {
+    objectCategories: string[];
+    keyObjects: Array<{ time: string; description: string }>;
+    objectOccurrences: Record<string, number>;
+    objectInteractions: Array<{ time: string; description: string }>;
+    sceneClassifications: Array<{ time: string; scene: string }>;
+    labels: string[];
+  };
+  symbols?: {
+    detectedSymbols: Array<{ symbol: string; confidence: number; time: string; location: string }>;
+    riskAnalysis: { riskLevel: string; overallRisk: number; riskLabel: string };
+    symbolOccurrences: Record<string, number>;
+    symbolCategories: string[];
+    labels: string[];
+  };
+  audio?: {
+    timeline: string[];
+    soundEffects: string[];
+    musicPatterns: string[];
+    audioFeatures: Record<string, number>;
+    emotionAnalysis: Array<{ time: string; emotion: string; confidence: number }>;
+    backgroundNoise: { level: string; type: string };
+    transcription: string;
+  };
+  poi?: POIAnalysisResults;
+  scenes?: SceneAnalysisResults;
+  // Add other analysis types as needed
 }
 
 export type Language = {
@@ -84,20 +105,37 @@ export interface POIAnalysisResults {
 }
 
 export interface SceneAnalysisResults {
-  sceneCount: number
-  averageSceneDuration: number
-  sceneTransitions: Array<{ from: string; to: string; time: string }>
-  dominantColors: Array<{ r: number; g: number; b: number }>
-  sceneDescriptions: string[]
-  keyScenes: Array<{ 
-    time: string
-    type: string
-    complexity: number
-    motionIntensity: number
-    mood: string
-    text: string
-  }>
-  similarityMatrix: number[][]
+  complex: ComplexSceneAnalysis;
+  simple: SimpleSceneAnalysis;
+}
+
+export interface ComplexSceneAnalysis {
+  scenes: Array<{
+    start_frame: number;
+    start_time: string;
+    preview_image: string;
+  }>;
+  total_scenes: number;
+  fps: number;
+  duration: string;
+}
+
+export interface SimpleSceneAnalysis {
+  sceneCount: number;
+  averageSceneDuration: number;
+  sceneTransitions: Array<{ from: string; to: string; time: string }>;
+  dominantColors: Array<{ r: number; g: number; b: number }>;
+  sceneDescriptions: string[];
+  keyScenes: Array<{
+    time: string;
+    type: string;
+    complexity: number;
+    motionIntensity: number;
+    mood: string;
+    text: string;
+  }>;
+  similarityMatrix: number[][];
+  labels: string[];
 }
 
 export type AdminDecision = {
@@ -106,33 +144,4 @@ export type AdminDecision = {
   copyrightViolation: boolean
   prohibitedContent: boolean
   recommendationLevel: 'Highly Recommended' | 'Recommended' | 'Neutral' | 'Not Recommended' | 'Highly Not Recommended'
-}
-
-export interface AudioAnalysis {
-  timeline: string[];
-  soundEffects: string[];
-  musicPatterns: string[];
-  audioFeatures: {
-    [key: string]: number;
-  };
-  emotionAnalysis: { Emotion: string; Score: string }[];
-  backgroundNoise: {
-    [key: string]: number;
-  };
-  transcription: string;
-}
-
-export interface TranscriptionAnalysis {
-  transcription: string;
-  analysis: {
-    generationStatus: { success: boolean; model: string };
-    languages: { name: string; primary: boolean }[];
-    lipSyncAccuracy: number;
-    subtitlesStatus: { created: boolean; synchronized: boolean };
-    keyEvents: { time: string; description: string; type: string }[];
-    sentimentAnalysis: { time: string; value: number }[];
-    overallSentiment: { tone: string; value: number };
-    keywordAnalysis: { word: string; count: number; type: string }[];
-    textLabels: string[];
-  };
 }

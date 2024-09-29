@@ -15,6 +15,7 @@ import { ComplexSearchComponent } from './complex-search'
 import { VideoAnalysis as VideoAnalysisMoc } from './video-analysis-moc'
 import { VideoAnalysis } from './video-analysis'
 import { Progress } from "@/components/ui/progress"
+import { motion } from 'framer-motion'
 
 // Add this interface for the Video type
 interface Video {
@@ -81,97 +82,113 @@ export function VideoAnalysisPlatformComponent() {
   }
 
   return (
-    <div className="container mx-auto p-4 max-w-7xl">
-      <header className="flex justify-between items-center mb-6">
-        <h1 className="text-3xl font-bold">Платформа анализа видео</h1>
-        <div className="flex items-center space-x-4">
-          <div className="flex items-center space-x-2">
-            <Switch
-              id="tester-mode"
-              checked={testerMode}
-              onCheckedChange={toggleTesterMode}
-            />
-            <Label htmlFor="tester-mode" className="cursor-pointer">Режим тестера</Label>
+    <div className="bg-gray-900 text-gray-100 min-h-screen">
+      <div className="p-4">
+        <header className="flex justify-between items-center mb-6">
+          <h1 className="text-3xl font-bold bg-gradient-to-r from-purple-400 to-pink-600 text-transparent bg-clip-text">
+            Платформа анализа видео
+          </h1>
+          <div className="flex items-center space-x-4">
+            <div className="flex items-center space-x-2">
+              <Switch
+                id="tester-mode"
+                checked={testerMode}
+                onCheckedChange={toggleTesterMode}
+                className="data-[state=checked]:bg-purple-500"
+              />
+              <Label htmlFor="tester-mode" className="cursor-pointer text-gray-300">Режим тестера</Label>
+            </div>
+            <Button variant="outline" size="icon" className="text-gray-300 hover:text-white hover:border-purple-500">
+              <Settings className="h-4 w-4" />
+            </Button>
           </div>
-          <Button variant="outline" size="icon">
-            <Settings className="h-4 w-4" />
+        </header>
+
+        <div className="flex items-center space-x-2 mb-6">
+          <Input type="text" placeholder="Поиск видео..." className="flex-grow bg-gray-800 border-gray-700 text-white placeholder-gray-400" />
+          <Button className="bg-purple-600 hover:bg-purple-700">
+            <Search className="mr-2 h-4 w-4" />
+            Поиск
+          </Button>
+          <Button onClick={() => setShowComplexSearch(!showComplexSearch)} className="bg-pink-600 hover:bg-pink-700">
+            {showComplexSearch ? 'Простой поиск' : 'Расширенный поиск'}
+          </Button>
+          <Button onClick={handleAddVideo} className="bg-green-600 hover:bg-green-700">
+            <Plus className="mr-2 h-4 w-4" />
+            Добавить видео
           </Button>
         </div>
-      </header>
 
-      <div className="flex items-center space-x-2 mb-6">
-        <Input type="text" placeholder="Поиск видео..." className="flex-grow" />
-        <Button>
-          <Search className="mr-2 h-4 w-4" />
-          Поиск
-        </Button>
-        <Button onClick={() => setShowComplexSearch(!showComplexSearch)}>
-          {showComplexSearch ? 'Простой поиск' : 'Расширенный поиск'}
-        </Button>
-        <Button onClick={handleAddVideo}>
-          <Plus className="mr-2 h-4 w-4" />
-          Добавить видео
-        </Button>
+        {showComplexSearch && <ComplexSearchComponent />}
+
+        {testerMode ? (
+          <TesterModeView
+            videos={videos}
+            onVideoClick={handleVideoClick}
+          />
+        ) : (
+          <NormalModeView
+            videos={videos}
+            onVideoClick={handleVideoClick}
+          />
+        )}
+
+        {selectedVideo && (
+          <VideoDetailView
+            video={selectedVideo}
+            testerMode={testerMode}
+            showAnalysis={showAnalysis}
+            onClose={() => setSelectedVideo(null)}
+            onAnalysisClick={() => setShowAnalysis(true)}
+          />
+        )}
+
+        {showUploadModal && (
+          <UploadModal onClose={() => setShowUploadModal(false)} onUpload={handleUpload} progress={uploadProgress} />
+        )}
       </div>
-
-      {showComplexSearch && <ComplexSearchComponent />}
-
-      {testerMode ? (
-        <TesterModeView
-          videos={videos}
-          onVideoClick={handleVideoClick}
-        />
-      ) : (
-        <NormalModeView
-          videos={videos}
-          onVideoClick={handleVideoClick}
-        />
-      )}
-
-      {selectedVideo && (
-        <VideoDetailView
-          video={selectedVideo}
-          testerMode={testerMode}
-          showAnalysis={showAnalysis}
-          onClose={() => setSelectedVideo(null)}
-          onAnalysisClick={() => setShowAnalysis(true)}
-        />
-      )}
-
-      {showUploadModal && (
-        <UploadModal onClose={() => setShowUploadModal(false)} onUpload={handleUpload} progress={uploadProgress} />
-      )}
     </div>
   )
 }
 
 function TesterModeView({ videos, onVideoClick }: { videos: Video[], onVideoClick: (video: Video) => void }) {
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+    <motion.div 
+      className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      transition={{ duration: 0.5, staggerChildren: 0.1 }}
+    >
       {videos.map((video) => (
-        <Card key={video.id} className="cursor-pointer" onClick={() => onVideoClick(video)}>
-          <CardContent className="p-4">
-            <div className="relative">
-              <img src={video.thumbnail} alt={video.title} className="w-full h-auto rounded-md" />
-              <Badge className="absolute bottom-2 right-2 bg-black bg-opacity-75">{video.duration}</Badge>
-            </div>
-            <h3 className="font-medium mt-2 line-clamp-2">{video.title}</h3>
-            <Badge variant={video.category === "Не аннотировано" ? "destructive" : "secondary"} className="mt-2">
-              {video.category}
-            </Badge>
-          </CardContent>
-        </Card>
+        <motion.div
+          key={video.id}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.95 }}
+        >
+          <Card className="cursor-pointer bg-gray-800 border-gray-700 hover:border-purple-500 transition-colors duration-300" onClick={() => onVideoClick(video)}>
+            <CardContent className="p-4">
+              <div className="relative overflow-hidden rounded-md">
+                <img src={video.thumbnail} alt={video.title} className="w-full h-auto transition-transform duration-300 hover:scale-110" />
+                <Badge className="absolute bottom-2 right-2 bg-black bg-opacity-75">{video.duration}</Badge>
+              </div>
+              <h3 className="font-medium mt-2 line-clamp-2 text-gray-200">{video.title}</h3>
+              <Badge variant={video.category === "Не аннотировано" ? "destructive" : "secondary"} className="mt-2">
+                {video.category}
+              </Badge>
+            </CardContent>
+          </Card>
+        </motion.div>
       ))}
-    </div>
+    </motion.div>
   )
 }
 
 function NormalModeView({ videos, onVideoClick }: { videos: Video[], onVideoClick: (video: Video) => void }) {
   return (
-    <Tabs defaultValue="to-analyze">
-      <TabsList className="mb-4">
-        <TabsTrigger value="to-analyze">Видео для анализа</TabsTrigger>
-        <TabsTrigger value="annotated">Аннотированные примеры</TabsTrigger>
+    <Tabs defaultValue="to-analyze" className="text-gray-200">
+      <TabsList className="mb-4 bg-gray-800">
+        <TabsTrigger value="to-analyze" className="data-[state=active]:bg-purple-600">Видео для анализа</TabsTrigger>
+        <TabsTrigger value="annotated" className="data-[state=active]:bg-purple-600">Аннотированные примеры</TabsTrigger>
       </TabsList>
       <TabsContent value="to-analyze">
         <VideoGrid videos={videos.filter(v => v.category === "Не аннотировано")} onVideoSelect={onVideoClick} />
@@ -212,45 +229,55 @@ function VideoDetailView({ video, testerMode, showAnalysis, onClose, onAnalysisC
   onAnalysisClick: () => void
 }) {
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50">
-      <div className="fixed inset-4 bg-background rounded-lg shadow-lg overflow-auto">
-        <div className="p-4">
+    <motion.div 
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div 
+        className="bg-gray-900 rounded-lg shadow-lg overflow-auto w-full max-w-4xl max-h-[90vh]"
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+      >
+        <div className="p-6">
           <div className="flex justify-between items-center mb-4">
-            <h2 className="text-2xl font-bold">{video.title}</h2>
-            <Button variant="ghost" size="icon" onClick={onClose}>
+            <h2 className="text-2xl font-bold text-gray-100">{video.title}</h2>
+            <Button variant="ghost" size="icon" onClick={onClose} className="text-gray-400 hover:text-white">
               <X className="h-6 w-6" />
             </Button>
           </div>
           <VideoPlayer video={video} />
           {video.category === "Не аннотировано" && (
-            <Button onClick={onAnalysisClick} className="mt-4">Автоаннотировать</Button>
+            <Button onClick={onAnalysisClick} className="mt-4 bg-purple-600 hover:bg-purple-700">Автоаннотировать</Button>
           )}
           {showAnalysis && (
             testerMode ? <VideoAnalysisMoc /> : <VideoAnalysis />
           )}
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }
 
 function VideoPlayer({ video }: { video: Video }) {
   return (
-    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden">
+    <div className="relative w-full aspect-video bg-black rounded-lg overflow-hidden shadow-lg">
       <img src={video.thumbnail} alt={video.title} className="w-full h-full object-cover" />
       <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black to-transparent p-4">
         <div className="flex items-center justify-between text-white">
           <div className="flex items-center space-x-2">
-            <Button size="icon" variant="ghost">
+            <Button size="icon" variant="ghost" className="hover:bg-white/20">
               <Play className="h-6 w-6" />
             </Button>
             <span>{video.duration}</span>
           </div>
           <div className="flex items-center space-x-2">
-            <Button size="icon" variant="ghost">
+            <Button size="icon" variant="ghost" className="hover:bg-white/20">
               <Volume2 className="h-6 w-6" />
             </Button>
-            <Button size="icon" variant="ghost">
+            <Button size="icon" variant="ghost" className="hover:bg-white/20">
               <Maximize className="h-6 w-6" />
             </Button>
           </div>
@@ -270,18 +297,28 @@ function UploadModal({ onClose, onUpload, progress }: { onClose: () => void, onU
   }
 
   return (
-    <div className="fixed inset-0 bg-background/80 backdrop-blur-sm z-50 flex items-center justify-center">
-      <div className="bg-background rounded-lg shadow-lg p-6 w-96">
-        <h2 className="text-2xl font-bold mb-4">Загрузить видео</h2>
-        <Input type="file" accept="video/*" onChange={handleFileChange} className="mb-4" />
+    <motion.div 
+      className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+    >
+      <motion.div 
+        className="bg-gray-800 rounded-lg shadow-lg p-6 w-96"
+        initial={{ scale: 0.9, y: 20 }}
+        animate={{ scale: 1, y: 0 }}
+        exit={{ scale: 0.9, y: 20 }}
+      >
+        <h2 className="text-2xl font-bold mb-4 text-gray-100">Загрузить видео</h2>
+        <Input type="file" accept="video/*" onChange={handleFileChange} className="mb-4 bg-gray-700 text-gray-100" />
         {progress > 0 && (
           <Progress value={progress} className="mb-4" />
         )}
         <div className="flex justify-end space-x-2">
-          <Button variant="outline" onClick={onClose}>Отмена</Button>
-          <Button onClick={() => document.querySelector('input[type="file"]')?.click()}>Загрузить</Button>
+          <Button variant="outline" onClick={onClose} className="text-gray-300 hover:text-white hover:border-purple-500">Отмена</Button>
+          <Button onClick={() => document.querySelector('input[type="file"]')?.click()} className="bg-purple-600 hover:bg-purple-700">Загрузить</Button>
         </div>
-      </div>
-    </div>
+      </motion.div>
+    </motion.div>
   )
 }

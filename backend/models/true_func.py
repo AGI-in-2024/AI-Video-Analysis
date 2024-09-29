@@ -3,7 +3,8 @@ from src.transcription.audio import extract_audio_from_video, analyze_audio
 from src.symbols.symbol_detection import detect_symbols
 from src.objects.object_detection import detect_objects
 from src.poi.poi_detection import detect_poi, preprocess_frame, find_heat_zones, find_attention_hotspots, generate_eye_tracking_data
-from src.scenes.scene_analysis import analyze_scenes
+from src.scenes.complex_scene_analysis import analyze_complex_scenes
+from src.scenes.scene_analysis import analyze_scenes as analyze_simple_scenes
 from src.detection.detection import detect_yolo10
 import tempfile
 import os
@@ -35,7 +36,11 @@ import tempfile
 import os
 import torch
 from collections import defaultdict
-from src.audio.emotion_analysis import predict as predict_emotion
+import av
+from scenedetect import detect, AdaptiveDetector, VideoManager, SceneManager
+from scenedetect.detectors import ContentDetector, ThresholdDetector, HistogramDetector, HashDetector
+from collections import Counter
+import base64
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -90,17 +95,7 @@ def generate_transcription(video_path):
         
         return {
             "transcription": transcription,
-            "analysis": {
-                "generationStatus": {"success": True, "model": "Whisper-Base"},
-                "languages": [{"name": "Auto-detected", "primary": True}],
-                "lipSyncAccuracy": 95,  # Placeholder value
-                "subtitlesStatus": {"created": True, "synchronized": True},
-                "keyEvents": analysis["keyEvents"],
-                "sentimentAnalysis": analysis["sentimentAnalysis"],
-                "overallSentiment": analysis["overallSentiment"],
-                "keywordAnalysis": analysis["keywordAnalysis"],
-                "textLabels": analysis["textLabels"]
-            }
+            "analysis": analysis
         }
     except Exception as e:
         print(f"Error in generate_transcription: {str(e)}")
@@ -193,14 +188,6 @@ def generate_audio_analysis(video_path):
         logger.info(f"Analyzing audio: {audio_path}")
         results = audio_analyzer.analyze(audio_path)
         
-        # Perform emotion analysis
-        try:
-            emotion_results = predict_emotion(audio_path, 16000)  # Assuming 16kHz sampling rate
-            emotion_analysis = [{"Emotion": item["Emotion"], "Score": item["Score"]} for item in emotion_results]
-        except Exception as e:
-            logger.error(f"Error in emotion analysis: {str(e)}")
-            emotion_analysis = [{"Emotion": "Unknown", "Score": "100.0%"}]
-        
         # Process the results
         timeline = []
         for i, (tempo, pitch, loudness) in enumerate(zip(
@@ -230,7 +217,7 @@ def generate_audio_analysis(video_path):
                 "Mel Spectrogram Mean": np.mean(results.get('mel_spectrogram', [0])),
                 "Chroma Mean": np.mean(results.get('chroma', [0])),
             },
-            "emotionAnalysis": emotion_analysis,
+            "emotionAnalysis": results.get('emotion', []),
             "backgroundNoise": results.get('background_noise', {}),
             "transcription": results.get('transcription', '')
         }
@@ -242,7 +229,7 @@ def generate_audio_analysis(video_path):
             "soundEffects": [],
             "musicPatterns": [],
             "audioFeatures": {},
-            "emotionAnalysis": [{"Emotion": "Unknown", "Score": "100.0%"}],
+            "emotionAnalysis": [],
             "backgroundNoise": {},
             "transcription": ""
         }
@@ -254,7 +241,7 @@ def generate_audio_analysis(video_path):
             "soundEffects": [],
             "musicPatterns": [],
             "audioFeatures": {},
-            "emotionAnalysis": [{"Emotion": "Unknown", "Score": "100.0%"}],
+            "emotionAnalysis": [],
             "backgroundNoise": {},
             "transcription": ""
         }
@@ -263,46 +250,24 @@ def generate_audio_analysis(video_path):
         os.remove(audio_path)
 
 def generate_objects_analysis(video_path):
+    logger.info(f"Starting object analysis for video: {video_path}")
     object_detector = ObjectDetector()
-    cap = cv2.VideoCapture(video_path)
-    
-    objects = []
-    scenes = []
-    frame_count = 0
-    
-    while cap.isOpened():
-        ret, frame = cap.read()
-        if not ret:
-            break
-        
-        if frame_count % 30 == 0:  # Analyze every 30th frame
-            detected_objects = object_detector.detect_objects(frame)
-            objects.extend(detected_objects)
-            
-            detected_scene = object_detector.detect_scene(frame)
-            scenes.append(detected_scene)
-        
-        frame_count += 1
-    
-    cap.release()
-    
-    # Aggregate results
-    object_counts = {}
-    for obj in objects:
-        label = obj['label']
-        object_counts[label] = object_counts.get(label, 0) + 1
-    
-    top_objects = sorted(object_counts.items(), key=lambda x: x[1], reverse=True)[:10]
-    
-    return {
-        'top_objects': [{'label': label, 'count': count} for label, count in top_objects],
-        'scenes': scenes
-    }
+    try:
+        results = object_detector.detect_objects(video_path)
+        logger.info(f"Object analysis completed successfully. Detected {len(results)} objects.")
+        return results
+    except Exception as e:
+        logger.error(f"Error during object analysis: {str(e)}")
+        return []
 
 def generate_symbols_analysis(video_path):
     symbol_detector = SymbolDetector()
-    results = symbol_detector.detect_symbols(video_path)
-    
+    try:
+        results = symbol_detector.detect_symbols(video_path)
+    except Exception as e:
+        logging.error(f"Error in symbol detection: {str(e)}")
+        results = {'detectedSymbols': []}
+
     # Process the results
     detected_symbols = [
         {
@@ -566,8 +531,13 @@ def generate_object_pois(object_results, heatmap):
     return object_pois
 
 def generate_scenes_analysis(video_path):
-    scenes_result = analyze_scenes(video_path)
-    return scenes_result
+    complex_analysis = analyze_complex_scenes(video_path)
+    simple_analysis = analyze_simple_scenes(video_path)
+    
+    return {
+        "complex": complex_analysis,
+        "simple": simple_analysis
+    }
 
 # Helper functions
 

@@ -9,214 +9,103 @@ Original file is located at
 
 import av
 import numpy as np
-import matplotlib.pyplot as plt
-import math
-import os
-
-# Укажите путь к папке
-folder_path = 'video'
-
-# Получаем список файлов в папке
-files_list = [f for f in os.listdir(folder_path) if os.path.isfile(os.path.join(folder_path, f))]
-
-video_path = folder_path+"/"+files_list[1]
-print(video_path)
-container = av.open(video_path)
-fps = container.streams.video[0].average_rate
-fps = eval(str(fps))
-
-#Достаем из видео фиксированное количество кадров через равный промежуток
-def const_even_division(container, num_frame):
-    total_frames = container.streams.video[0].frames
-    indices = np.arange(0, total_frames, total_frames / num_frame).astype(int)
-    return indices
-
-indices = const_even_division(container, 10)
-
-print(indices)
-
-#scenedetect - очень интересная библиотека, можно попробовать поиграть с различными методами (см доку)
-#Работает на основе цветовой гаммы
-
-from scenedetect import detect, AdaptiveDetector, split_video_ffmpeg, SceneDetector
-from scenedetect import VideoManager, SceneManager
-from scenedetect.detectors import ContentDetector
-
-#baseline
-scene_list = detect(video_path, AdaptiveDetector())
-scene_list = [i[0].get_frames() for i in scene_list]
-len(scene_list)
-
-from scenedetect import VideoManager, SceneManager
-from scenedetect.detectors import AdaptiveDetector, ContentDetector, HashDetector, HistogramDetector, ThresholdDetector
-from scenedetect.scene_detector import SceneDetector
-
-# Создаем VideoManager и SceneManager
-video_manager = VideoManager([video_path])
-
-# Подготавливаем несколько SceneManager для разных детекторов
-scene_managers = [SceneManager() for _ in range(5)]
-
-# Добавляем различные детекторы к каждому SceneManager
-scene_managers[0].add_detector(ContentDetector(threshold=30.0))  # Обнаружение по содержимому
-scene_managers[1].add_detector(ThresholdDetector(threshold=12))  # Обнаружение по порогу изменений
-scene_managers[2].add_detector(HistogramDetector(min_scene_len=15))  # Обнаружение по гистограмме
-scene_managers[3].add_detector(AdaptiveDetector(adaptive_threshold=3.0))  # Адаптивный детектор
-scene_managers[4].add_detector(HashDetector())  # Гистограммный детектор
-
-# Запускаем VideoManager
-#video_manager.set_downscale_factor()  # Понижение качества для ускорения
-video_manager.start()
-
-# Массив для хранения списков сцен от разных детекторов
-all_scene_lists = []
-
-# Запускаем детекцию для каждого SceneManager и собираем результаты
-for scene_manager in scene_managers:
-    scene_manager.detect_scenes(frame_source=video_manager)
-    scenes = scene_manager.get_scene_list()
-    all_scene_lists.append(scenes)
-    video_manager.reset()
-
+from scenedetect import detect, AdaptiveDetector, VideoManager, SceneManager
+from scenedetect.detectors import ContentDetector, ThresholdDetector, HistogramDetector, HashDetector
 from collections import Counter
+import base64
+import io
+from PIL import Image
 
-# Функция для объединения сцен с устранением дубликатов
-def merge_scene_lists(scene_lists):
-    fps_window = fps*1.3
+def analyze_complex_scenes(video_path):
+    # Open the video file
+    container = av.open(video_path)
+    fps = eval(str(container.streams.video[0].average_rate))
 
-    all_scene_list = []
-    all_scene_list.append(scene_lists[0][0][0].get_frames())
-    for scene_list in scene_lists:
-        for scene in scene_list:
-            all_scene_list.append(scene[1].get_frames())
+    # Create VideoManager and SceneManager
+    video_manager = VideoManager([video_path])
+    scene_managers = [SceneManager() for _ in range(5)]
+
+    # Add different detectors to each SceneManager
+    scene_managers[0].add_detector(ContentDetector(threshold=30.0))
+    scene_managers[1].add_detector(ThresholdDetector(threshold=12))
+    scene_managers[2].add_detector(HistogramDetector(min_scene_len=15))
+    scene_managers[3].add_detector(AdaptiveDetector(adaptive_threshold=3.0))
+    scene_managers[4].add_detector(HashDetector())
+
+    # Start VideoManager
+    video_manager.start()
+
+    # Detect scenes for each SceneManager
+    all_scene_lists = []
+    for scene_manager in scene_managers:
+        scene_manager.detect_scenes(frame_source=video_manager)
+        scenes = scene_manager.get_scene_list()
+        all_scene_lists.append(scenes)
+        video_manager.reset()
+
+    # Merge and filter scene lists
+    merged_scenes = merge_scene_lists(all_scene_lists, fps)
+
+    # Extract frames for each scene
+    scene_frames = extract_scene_frames(video_path, merged_scenes)
+
+    return {
+        "scenes": [
+            {
+                "start_frame": scene,
+                "start_time": format_time(scene / fps),
+                "preview_image": frame_to_base64(frame)
+            }
+            for scene, frame in zip(merged_scenes, scene_frames)
+        ],
+        "total_scenes": len(merged_scenes),
+        "fps": fps,
+        "duration": format_time(container.streams.video[0].duration / container.streams.video[0].time_base / fps)
+    }
+
+def merge_scene_lists(scene_lists, fps):
+    fps_window = fps * 1.3
+    all_scene_list = [scene_lists[0][0][0].get_frames()]
+    all_scene_list.extend(scene[1].get_frames() for scene_list in scene_lists for scene in scene_list)
 
     scene_counter = Counter(all_scene_list)
     scene_counter_key = sorted(scene_counter.keys())
 
-    # Список для объединенных сцен
     combined_scenes = []
+    current_scene = scene_counter_key[0]
 
-    # Проходим по отсортированным сценам и объединяем их при необходимости
-    current_scene = scene_counter_key[0]  # Инициализируем первой сценой
-
-    x = 0
     for next_scene in scene_counter_key[1:]:
-        # Если разница между концом текущей сцены и началом следующей меньше порога, объединяем
         if next_scene - current_scene <= fps_window:
             if scene_counter[next_scene] > scene_counter[current_scene]:
-                scene_counter[next_scene] += scene_counter[current_scene]/2
+                scene_counter[next_scene] += scene_counter[current_scene] / 2
                 del scene_counter[current_scene]
                 current_scene = next_scene
-
             else:
-                scene_counter[current_scene] += scene_counter[next_scene]/2
+                scene_counter[current_scene] += scene_counter[next_scene] / 2
                 del scene_counter[next_scene]
         else:
             current_scene = next_scene
 
     filtered_scene_counter = {k: v for k, v in scene_counter.items() if v > 2}
-
     return sorted(filtered_scene_counter.keys())
 
-# Функция для вывода сцен
-def print_scenes(scenes):
-    for i, scene in enumerate(scenes):
-        print(f"Scene {i + 1}: Start frame: {scene[0].get_frames()}, End frame: {scene[1].get_frames()}")
-
-
-# Объединяем результаты всех детекторов с устранением дубликатов
-merged_scenes = merge_scene_lists(all_scene_lists)
-
-
-# Выводим объединенные сцены
-#print_scenes(merged_scenes)
-print(merged_scenes)
-# Очищаем ресурсы
-video_manager.release()
-
-196
-
-scene_list
-
-def show_frame(video_path, indices, cols=4, cell_size=(5, 5)):
-    # Открываем видео в контекстном менеджере
+def extract_scene_frames(video_path, scene_list):
+    frames = []
     with av.open(video_path) as container:
-
-        # Создаем пустой список для кадров
-        frames = []
-
-        # Извлечение кадров по индексам
-        for i, frame in enumerate(container.decode(video=0)):
-            if i in indices:
-                frames.append(frame.to_image())  # Конвертируем в формат PIL
-
-            if i > max(indices):  # Останавливаем, когда получили все нужные кадры
+        stream = container.streams.video[0]
+        for frame_idx, frame in enumerate(container.decode(video=0)):
+            if frame_idx in scene_list:
+                frames.append(frame.to_image())
+            if frame_idx > max(scene_list):
                 break
+    return frames
 
-    # Определение количества кадров для отображения
-    num_frames = len(frames)
+def frame_to_base64(frame):
+    buffered = io.BytesIO()
+    frame.save(buffered, format="PNG")
+    return base64.b64encode(buffered.getvalue()).decode('utf-8')
 
-    # Определяем количество строк и колонок для субплотов
-    rows = math.ceil(num_frames / cols)  # Рассчитываем количество строк
-
-    # Рассчитываем динамический размер фигуры
-    figsize = (cols * cell_size[0], rows * cell_size[1])
-
-    # Визуализируем выбранные кадры с увеличенным размером
-    fig, axs = plt.subplots(rows, cols, figsize=figsize)
-
-    # Превращаем axs в одномерный массив для простого обращения, если у нас несколько строк
-    if rows > 1:
-        axs = axs.flatten()
-    else:
-        axs = [axs]  # Превращаем в список, если только одна строка
-
-    # Отображаем кадры
-    for i, frame in enumerate(frames):
-        axs[i].imshow(frame)
-        axs[i].axis('off')  # Отключаем оси для чистоты
-
-    # Если количество кадров меньше, чем ячеек, убираем лишние оси
-    for i in range(num_frames, rows * cols):
-        axs[i].axis('off')
-
-    plt.tight_layout()  # Чтобы избежать наложения изображений
-    plt.show()
-
-show_frame(video_path, merged_scenes)
-
-import os
-import av
-import uuid
-from PIL import Image
-
-def save_all_frames_random_names(video_path, output_folder, frame_indices, extension="png"):
-    # Проверяем, существует ли выходная папка, если нет — создаем её
-    if not os.path.exists(output_folder):
-        os.makedirs(output_folder)
-
-    # Открываем видеофайл
-    with av.open(video_path) as container:
-        # Создаем счётчик для отслеживания индексов кадров
-        for i, frame in enumerate(container.decode(video=0)):
-            # Сохраняем только кадры, которые входят в frame_indices
-            if i in frame_indices:
-                # Конвертируем кадр в изображение формата PIL
-                img = frame.to_image()
-
-                # Генерируем уникальное случайное имя файла
-                random_name = str(uuid.uuid4())  # Используем UUID для уникальности
-
-                # Полный путь для сохранения кадра
-                frame_filename = os.path.join(output_folder, f"{random_name}.{extension}")
-
-                # Сохраняем кадр
-                img.save(frame_filename)
-
-
-# Пример использования:
-save_all_frames_random_names(video_path, "frames", scene_list)
-
-
-
-
+def format_time(seconds):
+    minutes, seconds = divmod(int(seconds), 60)
+    hours, minutes = divmod(minutes, 60)
+    return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
