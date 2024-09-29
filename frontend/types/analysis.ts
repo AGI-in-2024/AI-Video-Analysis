@@ -6,7 +6,6 @@ export interface AnalysisSettings {
   symbol_detection: boolean;
   scene_detection: boolean;
   point_of_interest: boolean;
-  emotion_recognition: boolean; // Add this line
 }
 
 export interface AdvancedSettings extends AnalysisSettings {}
