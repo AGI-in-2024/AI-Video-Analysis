@@ -4,7 +4,6 @@ from src.detection import detect_yolo10
 from src.ocr import ocr_trocr_ru
 from src.transcription.audio import extract_audio_from_video
 from src.transcription.transcription import transcribe_audio_pipeline
-from src.ai_insights import generate_ai_insights
 from models.true_func import (
     generate_summary,
     generate_transcription,
@@ -25,7 +24,7 @@ from textblob import download_corpora
 import cv2
 import io
 import numpy as np
-import json  # Add this import at the top of the file with other imports
+import json
 from tqdm import tqdm
 
 def setup_nltk():
@@ -36,9 +35,12 @@ def setup_nltk():
     else:
         ssl._create_default_https_context = _create_unverified_https_context
 
-    nltk.download('punkt')
-    nltk.download('averaged_perceptron_tagger')
-    nltk.download('punkt_tab')  # Add this line to download punkt_tab
+    nltk_data_path = nltk.data.path[0]
+    required_packages = ['punkt', 'averaged_perceptron_tagger', 'punkt_tab']
+
+    for package in required_packages:
+        if not os.path.exists(os.path.join(nltk_data_path, package)):
+            nltk.download(package, quiet=True)
 
     # Download whisper model
     import whisper
@@ -49,14 +51,17 @@ def setup_nltk():
 
 def setup_textblob():
     import nltk
-    nltk.download('punkt')
-    nltk.download('averaged_perceptron_tagger')
+    nltk_data_path = nltk.data.path[0]
+    required_packages = ['punkt', 'averaged_perceptron_tagger']
+
+    for package in required_packages:
+        if not os.path.exists(os.path.join(nltk_data_path, package)):
+            nltk.download(package, quiet=True)
     
-    # Download TextBlob corpora
-    import subprocess
-    import sys
-    
-    subprocess.check_call([sys.executable, '-m', 'textblob.download_corpora'])
+    # Check if TextBlob corpora is already downloaded
+    import textblob.download_corpora
+    if not os.path.exists(os.path.join(os.path.expanduser("~"), 'nltk_data', 'corpora', 'brown')):
+        textblob.download_corpora.main()
 
 app = Flask(__name__)
 CORS(app)  # This enables CORS for all routes
@@ -136,22 +141,6 @@ def get_frame(frame_number):
         )
     except Exception as e:
         return jsonify({'error': str(e)}), 500
-
-@app.route('/api/ai-insights', methods=['POST'])
-def ai_insights():
-    video_file = request.files['video']
-    with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_video_file:
-        video_file.save(temp_video_file.name)
-        temp_video_path = temp_video_file.name
-
-    try:
-        insights = generate_ai_insights(temp_video_path)
-        return jsonify({'insights': insights})
-    except Exception as e:
-        logger.error(f"Error generating AI insights: {str(e)}", exc_info=True)
-        return jsonify({'error': str(e)}), 500
-    finally:
-        os.remove(temp_video_path)
 
 @app.route('/api/analyze-video', methods=['POST'])
 def analyze_video():
@@ -309,4 +298,6 @@ def process_analysis(analysis_function, analysis_type):
         os.remove(temp_video_path)
 
 if __name__ == '__main__':
+    setup_nltk()
+    setup_textblob()
     app.run(debug=True, host='0.0.0.0', port=5000)
