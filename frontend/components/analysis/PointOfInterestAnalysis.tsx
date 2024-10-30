@@ -2,7 +2,7 @@ import React from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
 import { AnalysisResults, HeatZone, HeatZoneCoordinate, AttentionHotspot, EyeTrackingData } from '@/types/analysis'
-import { format } from 'date-fns';
+//import { format } from 'date-fns';
 
 export function PointOfInterestAnalysis({ results }: { results: AnalysisResults['poi'] }) {
   if (!results) return <div className="text-gray-400">No point of interest analysis results available</div>

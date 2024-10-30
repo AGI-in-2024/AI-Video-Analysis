@@ -301,9 +301,11 @@ export function VideoAnalysis({ videoFile, videoUrl }: { videoFile: File | null,
             />
           </div>
         ))}
+
+
         <Button 
           onClick={handleAnalyze} 
-          disabled={!videoFile || isAnalyzing} 
+          disabled={!videoFile || isAnalyzing}
           className="w-full mt-4 bg-purple-600 hover:bg-purple-700"
         >
           {isAnalyzing ? 'Analyzing...' : 'Start Analysis'}

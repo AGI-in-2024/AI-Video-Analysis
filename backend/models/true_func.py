@@ -5,6 +5,8 @@ from src.objects.object_detection import detect_objects
 from src.poi.poi_detection import detect_poi, preprocess_frame, find_heat_zones, find_attention_hotspots, generate_eye_tracking_data
 from src.scenes.complex_scene_analysis import analyze_complex_scenes
 from src.scenes.scene_analysis import analyze_scenes as analyze_simple_scenes
+from src.scenes.scenes_split import split_video, save_all_frames_random_names
+from src.db.chroma import add_frames_random_name
 from src.detection.detection import detect_yolo10
 import tempfile
 import os
@@ -615,3 +617,11 @@ def generate_text_labels(text):
         labels.append("Objective")
     
     return labels
+
+def fist_video_processing(video_path):
+    """
+    scene_list = split_video(video_path)
+    frames_random_name = save_all_frames_random_names(video_path, "frames", scene_list)
+    add_frames_random_name(frames_random_name)
+    """
+    add_frames_random_name([])

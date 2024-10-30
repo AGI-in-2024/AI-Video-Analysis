@@ -38,6 +38,7 @@ node_modules/
 /dist
 /build
 /.next/
+.next/
 /out/
 .cache/
 .pnp
@@ -63,10 +64,16 @@ yarn-error.log*
 *.pem
 .vercel
 
+.idea/
+.next/
 # TypeScript
 *.tsbuildinfo
 next-env.d.ts
 
 # Storybook
 storybook-static/
+
+
+video/
+frames/
 

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
@@ -26,15 +26,30 @@ interface Video {
   duration: string;
 }
 
-// Mock data for demonstration
-const videos: Video[] = [
-  { id: 1, title: "Видео для анализа 1", thumbnail: "/placeholder.svg?height=120&width=200", category: "Не аннотировано", duration: "10:30" },
-  { id: 2, title: "Видео для анализа 2", thumbnail: "/placeholder.svg?height=120&width=200", category: "Не аннотировано", duration: "5:45" },
-  { id: 3, title: "Пример аннотированного видео 1", thumbnail: "/placeholder.svg?height=120&width=200", category: "Аннотировано", duration: "8:20" },
-  { id: 4, title: "Пример аннотированного видео 2", thumbnail: "/placeholder.svg?height=120&width=200", category: "Аннотировано", duration: "12:15" },
-]
+async function fetchVideos() {
+  try {
+    const response = await fetch('http://127.0.0.1:5000/api/get_videos', {
+      method: 'GET'
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP error! Status: ${response.status}`);
+    }
+
+    const videos: Video[] = await response.json();
+    return videos;
+  } catch (error) {
+    console.error('Error loading videos:', error);
+    return [];
+
+  }
+}
+
+//const videos = fetchVideos();
+
 
 export function VideoAnalysisPlatformComponent() {
+  const [videos, setVideos] = useState<Video[]>([]);
   const [selectedVideo, setSelectedVideo] = useState<Video | null>(null)
   const [showAnalysis, setShowAnalysis] = useState(false)
   const [testerMode, setTesterMode] = useState(false)
@@ -44,6 +59,14 @@ export function VideoAnalysisPlatformComponent() {
   const [uploadedVideoFile, setUploadedVideoFile] = useState<File | null>(null)
   const [uploadedVideoUrl, setUploadedVideoUrl] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    async function loadVideos() {
+      const videoData = await fetchVideos();
+      setVideos(videoData.videos);
+    }
+    loadVideos();
+  }, []);
 
   const handleVideoClick = (video: Video) => {
     setSelectedVideo(video)
@@ -63,9 +86,29 @@ export function VideoAnalysisPlatformComponent() {
   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0]
     if (file) {
-      setUploadedVideoFile(file)
-      const videoUrl = URL.createObjectURL(file)
-      setUploadedVideoUrl(videoUrl)
+      const formData = new FormData();
+      formData.append('file', file);
+
+      try {
+        const response = fetch('http://127.0.0.1:5000/api/load_file', {
+          method: 'POST',
+          body: formData
+        });
+
+        if (response.ok) {
+          console.log('File uploaded successfully');
+        } else {
+          console.error('Failed to upload file', response.statusText);
+        }
+      } catch (error) {
+        console.error('Error uploading file:', error);
+      }
+
+      setUploadedVideoFile(file);
+      const videoUrl = URL.createObjectURL(file);
+
+      setUploadedVideoUrl(videoUrl);
+
       // Add the new video to the list (in a real app, you'd get this from the server)
       const newVideo: Video = {
         id: videos.length + 1,
@@ -74,8 +117,8 @@ export function VideoAnalysisPlatformComponent() {
         category: "Не аннотировано",
         duration: "00:00" // You'd get the real duration from the file
       }
-      videos.push(newVideo)
-      setSelectedVideo(newVideo)
+      videos.push(newVideo);
+      setSelectedVideo(newVideo);
     }
   }
 
@@ -237,6 +280,9 @@ function VideoDetailView({ video, testerMode, showAnalysis, onClose, onAnalysisC
   uploadedVideoFile: File | null,
   uploadedVideoUrl: string | null
 }) {
+  uploadedVideoUrl = "http://127.0.0.1:5000/video/"+video.id+"/"+video.title;
+  console.log(video);
+  console.log(uploadedVideoUrl);
   return (
     <motion.div 
       className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center"

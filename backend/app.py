@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, send_from_directory
 from flask_cors import CORS
 from src.detection import detect_yolo10
 from src.ocr import ocr_trocr_ru
@@ -26,6 +26,9 @@ import io
 import numpy as np
 import json
 from tqdm import tqdm
+
+from src.db.config import SessionLocal
+from src.db.models import Video, VideoStatus
 
 def setup_nltk():
     try:
@@ -270,6 +273,64 @@ def analyze_scenes():
 def analyze_poi():
     return process_analysis(generate_poi_analysis, 'poi')
 
+@app.route('/api/load_file', methods=['POST'])
+def load_file():
+    if 'file' not in request.files:
+        return jsonify({'error': 'No file provided'}), 400
+
+    file = request.files['file']
+
+    session = SessionLocal()
+    new_video = Video(
+        file_name=file.filename,
+        duration=0,
+        status=VideoStatus.PROCESSING
+    )
+    session.add(new_video)
+    session.flush()
+
+    # Define the directory path
+    directory_path = os.path.join('video', str(new_video.id))
+    # Ensure the directory exists, create it if not
+    os.makedirs(directory_path, exist_ok=True)
+    # Define the file path
+    file_path = os.path.join(directory_path, file.filename)
+    # Save the file
+    file.save(file_path)
+
+    session.commit()
+    return jsonify({'file_path': file_path})
+
+def format_duration(seconds):
+    minutes = seconds // 60
+    remaining_seconds = seconds % 60
+    return f"{minutes}:{remaining_seconds:02d}"
+
+@app.route('/api/get_videos', methods=['GET'])
+def get_videos():
+    session = SessionLocal()
+    videos = session.query(Video).all()
+    # Преобразование списка объектов Video в список словарей
+    videos_dict = [video.to_dict() for video in videos]
+
+    format_videos = []
+    for video in videos_dict:
+        formatted_video = {
+            "id": video["id"],
+            "title": video["file_name"] or f"Видео {video['id']}",
+            "thumbnail": "/placeholder.svg?height=120&width=200",
+            "category": "Аннотировано" if video["status"] == "ANNOTATED" else "Не аннотировано",
+            "duration": format_duration(video["duration"]) if video["duration"] else "00:00"
+        }
+        format_videos.append(formatted_video)
+
+    # Возвращение JSON-ответа
+    return jsonify({'videos': format_videos})
+@app.route('/video/<path:filename>')
+def serve_file(filename):
+    print(filename)
+    return send_from_directory('video', filename)
+
 def process_analysis(analysis_function, analysis_type):
     logger.info(f"Received {analysis_type} analysis request")
     if 'video' not in request.files:
@@ -298,6 +359,8 @@ def process_analysis(analysis_function, analysis_type):
         os.remove(temp_video_path)
 
 if __name__ == '__main__':
+    import os
+    os.environ['KMP_DUPLICATE_LIB_OK'] = 'True'
     setup_nltk()
     setup_textblob()
     app.run(debug=True, host='0.0.0.0', port=5000)

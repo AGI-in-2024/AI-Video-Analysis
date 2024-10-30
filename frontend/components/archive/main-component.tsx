@@ -106,7 +106,7 @@ export default function MainComponent() {
 
       try {
         console.log('Sending request to backend...')
-        const response = await axios.post('http://localhost:5000/api/analyze-video', formData, {
+        const response = await axios.post('${process.env.API_URL}/analyze-video', formData, {
           onUploadProgress: (progressEvent) => {
             const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || 1))
             setProgress(percentCompleted)
@@ -123,6 +123,7 @@ export default function MainComponent() {
           setAnalysisResults(response.data.results.object_detection)
           setOcrResults(response.data.results.ocr)
           setTranscriptionResults(response.data.results.transcription.transcription || response.data.results.transcription)
+          console.log(URL.createObjectURL(file));
           setVideoUrl(URL.createObjectURL(file))
 
           console.log('Object detection results:', response.data.results.object_detection)
